@@ -26,7 +26,18 @@ const REDIRECT_PARAM_KEYS = [
   'article_url',
 ];
 
+const crypto = require('crypto');
 const log = require('../output/logger');
+const {
+  LANGUAGE_SEGMENTS,
+  STRIPPED_SUBDOMAINS,
+  IGNORED_QUERY_PARAMS,
+  SLUG_NUMERIC_SUFFIX_DOMAINS,
+} = require('../config/urlIdentity');
+
+const LANGUAGE_SEGMENT_SET = new Set(LANGUAGE_SEGMENTS);
+const STRIPPED_SUBDOMAIN_SET = new Set(STRIPPED_SUBDOMAINS);
+const IGNORED_QUERY_PARAM_SET = new Set(IGNORED_QUERY_PARAMS);
 const seenUrls = new Set();
 
 function decodeRepeatedly(value, maxRounds = 2) {
@@ -187,6 +198,100 @@ function normalizeUrl(url) {
   }
 }
 
+function stripVariantSubdomains(hostname) {
+  const labels = hostname.split('.');
+  while (labels.length > 2 && STRIPPED_SUBDOMAIN_SET.has(labels[0])) {
+    labels.shift();
+  }
+  return labels.join('.');
+}
+
+function domainMatches(hostname, domains) {
+  return domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+}
+
+/**
+ * Build the identity key of an article URL: two URLs with the same key are
+ * treated as the same article.
+ *
+ * On top of normalizeUrl() it ignores (rules in src/config/urlIdentity.js):
+ *   - scheme, www/m/amp/language subdomains
+ *   - language path segments: /vn/a and /en/a → same key
+ *   - AMP path segments and language/AMP query params
+ *   - "-<5+ digit id>" slug suffix on domains configured for it
+ *
+ * @param {string} url
+ * @returns {string} Key such as "example.com/tin-tuc/bai-viet", or '' if invalid
+ */
+function buildArticleKey(url) {
+  if (!url) return '';
+
+  let u;
+  try {
+    u = new URL(normalizeUrl(url));
+  } catch (_) {
+    return '';
+  }
+  if (!/^https?:$/.test(u.protocol)) return '';
+
+  const hostname = stripVariantSubdomains(u.hostname);
+
+  let segments = u.pathname
+    .split('/')
+    .filter(Boolean)
+    .filter((segment) => {
+      const lower = segment.toLowerCase();
+      return !LANGUAGE_SEGMENT_SET.has(lower) && lower !== 'amp';
+    });
+
+  if (segments.length > 0) {
+    const last = segments.length - 1;
+    segments[last] = segments[last].replace(/[.-]amp(\.html?)?$/i, '$1');
+    if (domainMatches(hostname, SLUG_NUMERIC_SUFFIX_DOMAINS)) {
+      segments[last] = segments[last].replace(/-\d{5,}$/, '');
+    }
+  }
+
+  const params = new URLSearchParams();
+  for (const [key, value] of u.searchParams) {
+    if (!IGNORED_QUERY_PARAM_SET.has(key.toLowerCase())) params.append(key, value);
+  }
+  params.sort();
+  const query = params.toString();
+
+  return `${hostname}/${segments.join('/')}${query ? `?${query}` : ''}`;
+}
+
+/**
+ * True when the URL is a site homepage (after language segments are ignored).
+ * Used to reject canonical/hreflang links that point to the homepage.
+ */
+function isHomepageUrl(url) {
+  const key = buildArticleKey(url);
+  if (!key) return false;
+  const path = key.slice(key.indexOf('/') + 1).split('?')[0];
+  return path === '' || /^(index|home|default)(\.\w+)?$/i.test(path);
+}
+
+/**
+ * True when both URLs belong to the same site (subdomain variants ignored).
+ */
+function isSameSite(urlA, urlB) {
+  const keyA = buildArticleKey(urlA);
+  const keyB = buildArticleKey(urlB);
+  if (!keyA || !keyB) return false;
+  return keyA.split('/')[0] === keyB.split('/')[0];
+}
+
+/**
+ * Stable article ID derived from the article key: the same article gets the
+ * same ID across runs as long as its key does not change.
+ */
+function buildArticleId(articleKey) {
+  if (!articleKey) return '';
+  return `art_${crypto.createHash('sha1').update(articleKey).digest('hex').slice(0, 12)}`;
+}
+
 /**
  * Extract the hostname (publisher domain) from a URL string.
  * Returns empty string on failure.
@@ -240,7 +345,7 @@ function buildHomepage(domain) {
 }
 
 function buildSeenKey(url, scope = '') {
-  return `${String(scope || '').trim().toLowerCase()}\n${normalizeUrl(url)}`;
+  return `${String(scope || '').trim().toLowerCase()}\n${buildArticleKey(url) || normalizeUrl(url)}`;
 }
 
 function isDuplicate(url, scope = '') {
@@ -267,6 +372,10 @@ function resetSeenUrls() {
 module.exports = {
   resolveGoogleRedirect,
   normalizeUrl,
+  buildArticleKey,
+  buildArticleId,
+  isHomepageUrl,
+  isSameSite,
   extractHostname,
   buildHomepage,
   isDuplicate,

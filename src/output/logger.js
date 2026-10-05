@@ -37,6 +37,11 @@ module.exports = {
     _print('[SKIP]', `Duplicate: ${url}`);
   },
 
+  /** Article skipped after fetch: same article as one already written */
+  skipSameArticle(url, matchedUrl, reason) {
+    _print('[SKIP_SAME_ARTICLE]', `${url} = ${matchedUrl} (${reason})`);
+  },
+
   /** Article skipped because it does not mention the target brand */
   skipBrand(brand, title, url) {
     _print('[SKIP_BRAND]', `Brand mismatch for ${brand}: "${title}" | ${url}`);
@@ -77,7 +82,12 @@ module.exports = {
 
   /** CAPTCHA detected */
   captcha(pauseMs) {
-    _print('[CAPTCHA]', `CAPTCHA detected, pausing ${pauseMs / 1000}s`);
+    _print('[CAPTCHA]', `CAPTCHA detected, waiting up to ${pauseMs / 1000}s for manual solve`);
+  },
+
+  /** End-of-run health line (warnings start with WARN) */
+  health(msg) {
+    _print('[HEALTH]', msg);
   },
 
   /** Per-brand completion summary */

@@ -11,11 +11,19 @@
  *   3. Filter Past week qua URL param tbs=qdr:w (sau khi đã ở trang kết quả)
  *      → chắc chắn hơn click UI
  *   4. Random delay giữa các thao tác
+ *
+ * Selector Google nằm trong src/config/googleSelectors.json.
  */
 
+const fs = require('fs');
+const path = require('path');
 const { getGooglePage, saveGoogleSession, isHeadlessMode } = require('./browser');
 const { resolveGoogleRedirect, extractHostname } = require('../parser/urlParser');
+const { slugify } = require('../output/artifacts');
 const log = require('../output/logger');
+const SELECTORS = require('../config/googleSelectors.json');
+
+const SELECTOR_DEBUG_DIR = path.join(__dirname, '..', '..', 'logs', 'selector-debug');
 
 // ─── Timing ───────────────────────────────────────────────────────────────────
 
@@ -123,6 +131,42 @@ function cleanRssTitle(title, sourceName) {
   return rawTitle.endsWith(suffix) ? rawTitle.slice(0, -suffix.length).trim() : rawTitle;
 }
 
+/**
+ * Tải RSS, retry khi 429/5xx/lỗi mạng (backoff 5s, 15s). Trả lỗi ngay với
+ * 4xx khác và khi Google trả trang HTML chặn thay vì XML, để không nhận nhầm
+ * trang chặn thành "0 kết quả".
+ */
+async function fetchRssWithRetry(rssUrl) {
+  const backoffs = [5000, 15000];
+  for (let attempt = 0; ; attempt++) {
+    let retryable = true;
+    try {
+      const response = await fetch(rssUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+          'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
+        },
+      });
+      if (!response.ok) {
+        retryable = response.status === 429 || response.status >= 500;
+        throw new Error(`RSS HTTP ${response.status}`);
+      }
+
+      const xml = await response.text();
+      if (!/<rss[\s>]/i.test(xml.slice(0, 2000))) {
+        retryable = false;
+        const blocked = SELECTORS.captchaPatterns.some((pattern) => xml.toLowerCase().includes(pattern.toLowerCase()));
+        throw new Error(blocked ? 'RSS blocked by Google challenge page' : 'RSS response is not RSS XML');
+      }
+      return xml;
+    } catch (err) {
+      if (!retryable || attempt >= backoffs.length) throw err;
+      log.warn(`${err.message}; retrying RSS in ${backoffs[attempt] / 1000}s`);
+      await new Promise((r) => setTimeout(r, backoffs[attempt]));
+    }
+  }
+}
+
 async function searchGoogleNewsRss(query, dateRange) {
   const rssQuery = buildRssQuery(query, dateRange);
   if (!rssQuery) {
@@ -135,17 +179,7 @@ async function searchGoogleNewsRss(query, dateRange) {
 
   log.info(`Fetching Google News RSS (${describeNewsDateFilter(dateRange)}): ${rssUrl}`);
 
-  const response = await fetch(rssUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0',
-      'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`RSS HTTP ${response.status}`);
-  }
-
-  const xml = await response.text();
+  const xml = await fetchRssWithRetry(rssUrl);
   const itemMatches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)];
   const cards = [];
   const seen = new Set();
@@ -172,19 +206,41 @@ async function searchGoogleNewsRss(query, dateRange) {
   return cards;
 }
 
+// ─── Run stats (đọc ở cuối run để cảnh báo) ───────────────────────────────────
+
+const searchStats = {
+  rssQueries: 0,
+  browserQueries: 0,
+  browserZeroQueries: [],     // query fallback trình duyệt trả 0 bài
+  selectorSuspectQueries: [], // trang có kết quả nhưng selector không bắt được bài
+  captchaSolved: 0,
+  captchaBlockedQueries: [],  // query bị bỏ vì CAPTCHA không được giải
+  browserSkippedQueries: [],  // query bỏ qua vì fallback đã bị tắt sau nhiều CAPTCHA
+};
+let browserSearchDisabled = false;
+
+function getSearchStats() {
+  return {
+    ...searchStats,
+    browserSearchDisabled,
+  };
+}
+
+function resetSearchStats() {
+  searchStats.rssQueries = 0;
+  searchStats.browserQueries = 0;
+  searchStats.browserZeroQueries = [];
+  searchStats.selectorSuspectQueries = [];
+  searchStats.captchaSolved = 0;
+  searchStats.captchaBlockedQueries = [];
+  searchStats.browserSkippedQueries = [];
+  browserSearchDisabled = false;
+}
+
 // ─── Consent dialog ───────────────────────────────────────────────────────────
 
 async function acceptConsent(page) {
-  const selectors = [
-    '#L2AGLb',
-    'button:has-text("Accept all")',
-    'button:has-text("Chấp nhận tất cả")',
-    'button:has-text("Agree")',
-    'button:has-text("Đồng ý")',
-    '[aria-label="Accept all"]',
-    'form[action*="consent"] button',
-  ];
-  for (const sel of selectors) {
+  for (const sel of SELECTORS.consentButtons) {
     try {
       const btn = await page.$(sel);
       if (btn) {
@@ -199,22 +255,50 @@ async function acceptConsent(page) {
 
 // ─── CAPTCHA detection ────────────────────────────────────────────────────────
 
-async function checkForCaptcha(page) {
-  const PAUSE = parseInt(process.env.CAPTCHA_PAUSE_MS || '30000', 10);
+async function isCaptchaPage(page) {
   const text = await page
-    .evaluate(() => (document.title + ' ' + (document.body?.innerText || '')).toLowerCase())
+    .evaluate(() => (location.href + ' ' + document.title + ' ' + (document.body?.innerText || '')).toLowerCase())
     .catch(() => '');
+  return SELECTORS.captchaPatterns.some((pattern) => text.includes(pattern.toLowerCase()));
+}
 
-  if (/unusual traffic|captcha|i'm not a robot|xác minh bạn không phải robot/.test(text)) {
-    if (isHeadlessMode()) {
-      log.warn('[CAPTCHA] Detected in headless mode; aborting query without wait.');
-      return true;
-    }
+/**
+ * Trả về true nếu trang đang sạch (không CAPTCHA, hoặc CAPTCHA đã được giải).
+ *
+ * Headful: chờ tối đa CAPTCHA_PAUSE_MS để người giải tay, kiểm tra mỗi 2 giây
+ * và chạy tiếp ngay khi giải xong. Headless: bỏ query luôn.
+ * Sau CAPTCHA_MAX_PER_RUN lần không giải được, tắt fallback trình duyệt cho
+ * phần còn lại của run (RSS vẫn chạy) để không gửi thêm request bị chặn.
+ */
+async function ensureNoCaptcha(page, query) {
+  if (!(await isCaptchaPage(page))) return true;
 
+  const PAUSE = parseInt(process.env.CAPTCHA_PAUSE_MS || '30000', 10);
+  const MAX_PER_RUN = parseInt(process.env.CAPTCHA_MAX_PER_RUN || '2', 10);
+
+  if (!isHeadlessMode() && PAUSE > 0) {
     log.captcha(PAUSE);
-    // Trong headful mode: dừng để user giải CAPTCHA tay
-    await new Promise((r) => setTimeout(r, PAUSE));
-    return true;
+    const deadline = Date.now() + PAUSE;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000));
+      if (!(await isCaptchaPage(page))) {
+        searchStats.captchaSolved++;
+        log.info('[CAPTCHA] Solved, continuing.');
+        await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
+        return true;
+      }
+    }
+  }
+
+  searchStats.captchaBlockedQueries.push(query);
+  log.warn(`[CAPTCHA] Not solved (headless=${isHeadlessMode()}); skipping query "${query}".`);
+
+  if (searchStats.captchaBlockedQueries.length >= MAX_PER_RUN && !browserSearchDisabled) {
+    browserSearchDisabled = true;
+    log.warn(
+      `[CAPTCHA] ${searchStats.captchaBlockedQueries.length} unsolved CAPTCHA(s); ` +
+      'disabling Google Search browser fallback for the rest of this run (RSS still used).'
+    );
   }
   return false;
 }
@@ -226,9 +310,9 @@ async function extractArticleCards(page) {
 
   let results = [];
 
-  // Strategy 1: đọc DOM trong page context
+  // Strategy 1: đọc DOM trong page context, selector lấy từ config/googleSelectors.json
   try {
-    const raw = await page.evaluate(() => {
+    const raw = await page.evaluate((selectors) => {
       function cleanText(value) {
         return String(value || '').replace(/\s+/g, ' ').trim();
       }
@@ -239,8 +323,7 @@ async function extractArticleCards(page) {
           if (!node.parentElement) break;
           node = node.parentElement;
           if (
-            node.hasAttribute('data-hveid') ||
-            node.hasAttribute('data-ved') ||
+            selectors.cardContainerAttributes.some((attr) => node.hasAttribute(attr)) ||
             node.getAttribute('role') === 'article' ||
             node.tagName === 'ARTICLE'
           ) return node;
@@ -255,16 +338,7 @@ async function extractArticleCards(page) {
       }
 
       function findPublisher(container) {
-        const selectors = [
-          'cite',
-          '[data-ved] span',
-          'span[class*="source"]',
-          'span[class*="Source"]',
-          '.NUnG9d', '.vr1PYe', '.VkSnBd', '.TbwUpd',
-          '[data-n-tid]',
-          'span[jsname]',
-        ];
-        for (const sel of selectors) {
+        for (const sel of selectors.publisher) {
           try {
             const el = container.querySelector(sel);
             if (el) {
@@ -277,15 +351,7 @@ async function extractArticleCards(page) {
       }
 
       function findHeadline(container, anchor) {
-        const selectors = [
-          'div[role="heading"]',
-          'h3',
-          'h4',
-          '[aria-level="3"]',
-          '[aria-level="2"]',
-        ];
-
-        for (const sel of selectors) {
+        for (const sel of selectors.headline) {
           try {
             const el = container.querySelector(sel);
             const text = cleanText(el?.textContent);
@@ -301,7 +367,9 @@ async function extractArticleCards(page) {
 
       const seen = new Set();
       const items = [];
-      const root = document.querySelector('#search') || document.body;
+      const root = selectors.resultsRoot
+        .map((sel) => document.querySelector(sel))
+        .find(Boolean) || document.body;
 
       for (const a of root.querySelectorAll('a[href]')) {
         const href = a.href || '';
@@ -321,7 +389,7 @@ async function extractArticleCards(page) {
         items.push({ title, href, publisher: findPublisher(container) });
       }
       return items;
-    });
+    }, SELECTORS);
 
     for (const { title, href, publisher } of raw) {
       const url = resolveGoogleRedirect(href);
@@ -335,16 +403,16 @@ async function extractArticleCards(page) {
     log.warn(`Card extraction strategy 1 failed: ${err.message}`);
   }
 
-  // Strategy 2: fallback
+  // Strategy 2: fallback, không phụ thuộc selector card
   if (results.length === 0) {
     log.warn('Strategy 1 got 0 results, trying fallback...');
     try {
-      const links = await page.$$eval(
-        '#search a[href]:not([href^="#"]):not([href^="javascript"])',
-        (as) => as
+      const links = await page.evaluate((rootSelectors) => {
+        const root = rootSelectors.map((sel) => document.querySelector(sel)).find(Boolean) || document.body;
+        return Array.from(root.querySelectorAll('a[href]:not([href^="#"]):not([href^="javascript"])'))
           .filter((a) => a.href && !/google\.(com|vn)\/(?!url\?q=)/.test(a.href))
-          .map((a) => ({ title: (a.textContent || '').trim(), href: a.href }))
-      );
+          .map((a) => ({ title: (a.textContent || '').trim(), href: a.href }));
+      }, SELECTORS.resultsRoot);
       const seen = new Set();
       for (const { title, href } of links) {
         if (!title || title.length < 20) continue;
@@ -361,13 +429,57 @@ async function extractArticleCards(page) {
   return results;
 }
 
+// ─── Selector health ──────────────────────────────────────────────────────────
+
+/**
+ * Gọi khi trang kết quả cho 0 bài. Phân biệt "Google thật sự không có kết quả"
+ * với "trang có kết quả nhưng selector không bắt được" (selector hỏng).
+ * Trường hợp sau: log [SELECTOR] và lưu HTML để sửa config/googleSelectors.json.
+ */
+async function diagnoseZeroResults(page, query) {
+  const info = await page.evaluate((selectors) => {
+    const text = (document.body?.innerText || '').toLowerCase();
+    const root = selectors.resultsRoot.map((sel) => document.querySelector(sel)).find(Boolean);
+    const externalLinks = Array.from((root || document.body).querySelectorAll('a[href^="http"]'))
+      .filter((a) => !/google\./.test(new URL(a.href).hostname)).length;
+    return {
+      hasRoot: Boolean(root),
+      externalLinks,
+      noResults: selectors.noResultsPatterns.some((pattern) => text.includes(pattern.toLowerCase())),
+    };
+  }, SELECTORS).catch(() => null);
+
+  if (!info || info.noResults) return;
+  if (info.hasRoot && info.externalLinks < 3) return;
+
+  searchStats.selectorSuspectQueries.push(query);
+  const reason = info.hasRoot
+    ? `${info.externalLinks} external links on page but 0 cards extracted`
+    : `none of resultsRoot selectors matched (${SELECTORS.resultsRoot.join(', ')})`;
+
+  let snapshot = '';
+  try {
+    fs.mkdirSync(SELECTOR_DEBUG_DIR, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    snapshot = path.join(SELECTOR_DEBUG_DIR, `${stamp}_${slugify(query)}.html`);
+    fs.writeFileSync(snapshot, await page.content(), 'utf8');
+  } catch (err) {
+    log.warn(`[SELECTOR] Could not save debug HTML: ${err.message}`);
+  }
+
+  log.warn(
+    `[SELECTOR] Google selectors may be outdated for "${query}": ${reason}. ` +
+    `Update src/config/googleSelectors.json${snapshot ? `; page saved to ${snapshot}` : ''}.`
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 /**
  * Chạy một Google News query và trả về danh sách article cards.
  *
- * Dùng tab tái sử dụng (getGooglePage) nên cookies/session được giữ qua
- * mọi query → ít CAPTCHA hơn nhiều so với mở tab mới mỗi lần.
+ * Ưu tiên Google News RSS (không CAPTCHA, không selector). Chỉ khi RSS lỗi hoặc
+ * trả 0 bài mới dùng Google Search trên trình duyệt (tab tái sử dụng).
  */
 async function searchGoogleNews(brand, query, options = {}) {
   const PAGE_TIMEOUT = parseInt(process.env.PAGE_TIMEOUT || '30000', 10);
@@ -380,6 +492,7 @@ async function searchGoogleNews(brand, query, options = {}) {
   try {
     const rssCards = await searchGoogleNewsRss(query, dateRange);
     if (rssCards.length > 0) {
+      searchStats.rssQueries++;
       log.found(rssCards.length, query);
       log.info(`Using RSS results for "${query}"`);
       return rssCards;
@@ -388,6 +501,14 @@ async function searchGoogleNews(brand, query, options = {}) {
   } catch (err) {
     log.warn(`RSS search failed for "${query}": ${err.message}`);
   }
+
+  if (browserSearchDisabled) {
+    searchStats.browserSkippedQueries.push(query);
+    log.warn(`Browser fallback disabled after repeated CAPTCHA; skipping "${query}".`);
+    return [];
+  }
+
+  searchStats.browserQueries++;
 
   // Lấy tab Google dùng chung (tạo mới nếu lần đầu, tái dùng nếu đã có)
   const page = await getGooglePage();
@@ -404,9 +525,10 @@ async function searchGoogleNews(brand, query, options = {}) {
       await acceptConsent(page);
       await sleep(800, 1500);
     }
+    if (!(await ensureNoCaptcha(page, query))) return [];
 
     // ── Bước 2: Xoá search box và gõ query (giống người dùng thật) ──────────
-    const searchBox = page.locator('textarea[name="q"], input[name="q"]').first();
+    const searchBox = page.locator(SELECTORS.searchBox).first();
 
     // Nếu đang ở trang kết quả trước → click vào search box để focus
     try {
@@ -428,16 +550,7 @@ async function searchGoogleNews(brand, query, options = {}) {
     await page.waitForLoadState('domcontentloaded', { timeout: PAGE_TIMEOUT });
     await sleep(1000, 2000);
 
-    if (await checkForCaptcha(page)) {
-      if (isHeadlessMode()) {
-        log.warn(`Aborting query "${query}" — CAPTCHA detected in headless mode.`);
-        return [];
-      }
-      if (await checkForCaptcha(page)) {
-        log.warn(`Aborting query "${query}" — CAPTCHA không giải được.`);
-        return [];
-      }
-    }
+    if (!(await ensureNoCaptcha(page, query))) return [];
 
     // ── Bước 3: Chuyển sang tab News + filter Past week qua URL param ────────
     // Lấy URL hiện tại sau khi search → inject tbm=nws (News) + tbs=qdr:w (Past week)
@@ -461,7 +574,7 @@ async function searchGoogleNews(brand, query, options = {}) {
     });
     await sleep(1000, 2000);
 
-    if (await checkForCaptcha(page)) return [];
+    if (!(await ensureNoCaptcha(page, query))) return [];
 
     // Xác nhận đã vào đúng News tab + Past week filter
     const finalUrl = page.url();
@@ -474,7 +587,7 @@ async function searchGoogleNews(brand, query, options = {}) {
       const retryUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&tbm=nws&tbs=${encodeURIComponent(newsDateFilter)}&hl=vi&gl=vn`;
       await page.goto(retryUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
       await sleep(1000, 2000);
-      if (await checkForCaptcha(page)) return [];
+      if (!(await ensureNoCaptcha(page, query))) return [];
     } else {
       log.info(`Filter confirmed: News tab + ${newsDateFilterLabel} ✓`);
     }
@@ -483,7 +596,11 @@ async function searchGoogleNews(brand, query, options = {}) {
     const cards = await extractArticleCards(page);
 
     log.found(cards.length, query);
-    if (cards.length === 0) log.warn(`Query "${query}" returned 0 results.`);
+    if (cards.length === 0) {
+      searchStats.browserZeroQueries.push(query);
+      log.warn(`Query "${query}" returned 0 results.`);
+      await diagnoseZeroResults(page, query);
+    }
 
     // Lưu cookies sau mỗi search thành công → giảm CAPTCHA lần sau
     await saveGoogleSession();
@@ -497,4 +614,4 @@ async function searchGoogleNews(brand, query, options = {}) {
   }
 }
 
-module.exports = { searchGoogleNews };
+module.exports = { searchGoogleNews, getSearchStats, resetSearchStats };

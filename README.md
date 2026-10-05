@@ -43,10 +43,12 @@ Các thương hiệu: Sun Life, Chubb Life, FWD, Dai-ichi Life, AIA, Bảo Việ
 
 1. Tìm qua Google News RSS; nếu RSS lỗi hoặc không có kết quả, chuyển sang tìm bằng trình duyệt.
 2. Phân loại thẻ kết quả để loại tin không liên quan, xác định thương hiệu và sắc thái.
-3. Chuẩn hóa URL và loại trùng theo từng thương hiệu trong lần chạy. Bài nhắc nhiều thương hiệu có thể xuất hiện cho nhiều thương hiệu.
+3. Chuẩn hóa URL và loại trùng theo từng thương hiệu trong lần chạy. Bài nhắc nhiều thương hiệu có thể xuất hiện cho nhiều thương hiệu. Key so trùng bỏ qua ngôn ngữ (`/vn/` ↔ `/en/`), AMP, bản mobile, tham số tracking; luật nằm ở `src/config/urlIdentity.js`.
 4. Tải chi tiết bài với số tác vụ đồng thời giới hạn; lấy tiêu đề, URL cuối và ngày đăng từ metadata, JSON-LD, URL hoặc văn bản trang.
 5. Loại bài không xác định được ngày hoặc nằm ngoài khoảng ngày; bỏ nguồn trong danh sách chặn của `src/index.js`.
-6. Chụp phần đầu trang của bài hợp lệ và ghi từng dòng CSV.
+6. Loại trùng lần hai sau khi mở bài (`src/parser/articleIdentity.js`): so URL cuối, link hreflang (bản ngôn ngữ khác, kể cả khác slug) và canonical/og:url (chỉ gộp khi cùng tiêu đề). Bài trùng ghi log `[SKIP_SAME_ARTICLE]`, không chụp ảnh.
+7. Chụp phần đầu trang của bài hợp lệ và ghi từng dòng CSV kèm `article_id`.
+8. Cuối run in các dòng `[HEALTH]`: số bài đã gộp, brand 0 bài, query bị CAPTCHA, nghi selector Google hỏng.
 
 Phân loại diễn ra trước khi tải chi tiết bài và chủ yếu dựa trên dữ liệu tìm kiếm trong luồng crawler hiện tại. Lỗi chụp ảnh được ghi log và không nhất thiết làm mất dòng CSV.
 
@@ -62,7 +64,8 @@ Phân loại diễn ra trước khi tải chi tiết bài và chủ yếu dựa 
 | `PAGE_TIMEOUT` | `30000` | Thời gian chờ điều hướng, mili giây |
 | `SEARCH_DELAY_MIN`, `SEARCH_DELAY_MAX` | `3000`, `6000` | Khoảng nghỉ trước mỗi truy vấn, mili giây |
 | `ARTICLE_DELAY_MIN`, `ARTICLE_DELAY_MAX` | `500`, `1500` | Khoảng nghỉ tải bài, mili giây |
-| `CAPTCHA_PAUSE_MS` | `30000` | Thời gian chờ xử lý CAPTCHA |
+| `CAPTCHA_PAUSE_MS` | `30000` | Thời gian tối đa chờ người giải CAPTCHA (chế độ có cửa sổ); chạy tiếp ngay khi giải xong |
+| `CAPTCHA_MAX_PER_RUN` | `2` | Số CAPTCHA không giải được trước khi tắt tìm bằng trình duyệt cho phần còn lại của run (RSS vẫn chạy) |
 | `OUTPUT_DIR` | `output` | Thư mục đầu ra, tương đối từ gốc scraper |
 | `CLASSIFIER_MODE` | `rules` | `rules`, `hybrid` hoặc `gemini` |
 | `CLASSIFIER_REVIEW_FALLBACK` | `reject` | `reject` hoặc `accept`; `accept` vẫn yêu cầu tín hiệu thương hiệu mục tiêu |
@@ -87,6 +90,7 @@ CSV lưu tại `output/articles_YYYYMMDD_HHmmss.csv` (hoặc `OUTPUT_DIR`), mã 
 | `publish_date` | Giờ Việt Nam: `HH:mm:ss DD/MM/YYYY` |
 | `sentiment` | Sắc thái do bộ phân loại trả về |
 | `classification_source` | Nguồn phân loại, ví dụ `rules` |
+| `article_id` | ID ổn định của bài (`art_` + 12 ký tự hex), tính từ URL đã chuẩn hóa; cùng bài ở `/vn/` và `/en/` có cùng ID qua các lần chạy |
 
 Ảnh PNG lưu trong `output/screenshots/`, chụp khung nhìn 800 × 800 pixel ở đầu trang. Tên ảnh kết hợp thương hiệu, domain, ngày và mã băm URL. CSV ghi tăng dần để giữ phần kết quả đã ghi khi tiến trình bị ngắt.
 
@@ -118,11 +122,14 @@ src/
   index.js                    Điều phối crawler, lọc ngày
   capture_pr_images.js        Chụp ảnh từ danh sách JSON
   config/brands.js            Thương hiệu, bí danh, truy vấn
+  config/urlIdentity.js       Luật nhận dạng cùng bài (ngôn ngữ, AMP, hậu tố ID)
+  config/googleSelectors.json Selector Google Search, mẫu CAPTCHA
   crawler/browser.js          Chromium và phiên Google
   crawler/google.js           Tìm kiếm RSS và trình duyệt
   crawler/article.js          Tải bài, lấy tiêu đề/ngày đăng
   parser/dateParser.js        Phân tích và định dạng ngày
-  parser/urlParser.js         Chuyển hướng, chuẩn hóa, loại trùng
+  parser/urlParser.js         Chuyển hướng, chuẩn hóa, key bài, loại trùng
+  parser/articleIdentity.js   Loại trùng sau khi mở bài, cấp article_id
   output/artifacts.js         CSV và ảnh chụp
   output/logger.js            Log ra console
   utils/articleClassifier.js  Quy tắc và Gemini
@@ -138,8 +145,11 @@ npm.cmd test
 Test kiểm tra ngày, URL, loại trùng, tiếng Việt, phân loại bằng quy tắc và CSV. Test không tìm kiếm Google hoặc gọi Gemini, không xác nhận tích hợp mạng.
 
 - Thiếu Chromium: chạy `npx.cmd playwright install chromium`.
-- CAPTCHA: chạy có cửa sổ trình duyệt để xử lý và tăng khoảng nghỉ.
-- Kết quả ít hoặc rỗng: kiểm tra khoảng ngày, log phân loại, nguồn bị chặn và selector trong `src/crawler/google.js`.
+- CAPTCHA: chạy có cửa sổ trình duyệt để xử lý và tăng khoảng nghỉ. Query bị bỏ vì CAPTCHA được liệt kê ở dòng `[HEALTH]` cuối run.
+- Kết quả ít hoặc rỗng: kiểm tra khoảng ngày, log phân loại, nguồn bị chặn. Nếu log có `[SELECTOR]`, sửa `src/config/googleSelectors.json` dựa trên HTML lưu ở `logs/selector-debug/`.
+- Hai URL của cùng bài vẫn bị tính 2 lần: thêm luật vào `src/config/urlIdentity.js`.
+
+Tool đã làm được gì, chưa làm được gì và lý do: xem [STATUS.md](STATUS.md).
 - Excel hiển thị sai tiếng Việt: nhập qua **Data → From Text/CSV**, chọn UTF-8.
 
 ## Dọn thư mục

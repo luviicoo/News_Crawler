@@ -1,0 +1,48 @@
+{
+  "_note": "Selector cho phương án dự phòng Google Search (chỉ dùng khi RSS lỗi hoặc trả 0 bài). Google đổi giao diện thì sửa file này, không cần sửa code. Khi nghi selector hỏng, crawler log [SELECTOR] và lưu HTML trang vào logs/selector-debug/ để đối chiếu.",
+  "searchBox": "textarea[name=\"q\"], input[name=\"q\"]",
+  "resultsRoot": ["#search", "#rso", "#main"],
+  "cardContainerAttributes": ["data-hveid", "data-ved"],
+  "headline": [
+    "div[role=\"heading\"]",
+    "h3",
+    "h4",
+    "[aria-level=\"3\"]",
+    "[aria-level=\"2\"]"
+  ],
+  "publisher": [
+    "cite",
+    "[data-ved] span",
+    "span[class*=\"source\"]",
+    "span[class*=\"Source\"]",
+    ".NUnG9d",
+    ".vr1PYe",
+    ".VkSnBd",
+    ".TbwUpd",
+    "[data-n-tid]",
+    "span[jsname]"
+  ],
+  "consentButtons": [
+    "#L2AGLb",
+    "button:has-text(\"Accept all\")",
+    "button:has-text(\"Chấp nhận tất cả\")",
+    "button:has-text(\"Agree\")",
+    "button:has-text(\"Đồng ý\")",
+    "[aria-label=\"Accept all\"]",
+    "form[action*=\"consent\"] button"
+  ],
+  "captchaPatterns": [
+    "unusual traffic",
+    "captcha",
+    "i'm not a robot",
+    "xác minh bạn không phải robot",
+    "lưu lượng truy cập bất thường",
+    "/sorry/index"
+  ],
+  "noResultsPatterns": [
+    "did not match any",
+    "no results found",
+    "không tìm thấy kết quả",
+    "không khớp với bất kỳ"
+  ]
+}

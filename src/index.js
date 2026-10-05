@@ -31,7 +31,7 @@ const pLimit = require('p-limit');
 
 const { BRANDS } = require('./config/brands');
 const { launchBrowser, closeBrowser } = require('./crawler/browser');
-const { searchGoogleNews } = require('./crawler/google');
+const { searchGoogleNews, getSearchStats } = require('./crawler/google');
 const { fetchArticle } = require('./crawler/article');
 const { classifyArticle } = require('./utils/articleClassifier');
 const { createCsvWriter, buildOutputPath } = require('./output/artifacts');
@@ -41,6 +41,7 @@ const {
   isDuplicate,
   markSeen,
 } = require('./parser/urlParser');
+const { createArticleRegistry } = require('./parser/articleIdentity');
 const { formatDateVN } = require('./parser/dateParser');
 const log = require('./output/logger');
 
@@ -179,6 +180,9 @@ async function main() {
 
   let totalArticles = 0;
   let totalErrors   = 0;
+  let totalMerged   = 0;
+  const articleRegistry = createArticleRegistry();
+  const brandsWithoutArticles = [];
 
   log.info(`PR article timeline: ${describeDateRange(dateRange)}`);
 
@@ -260,18 +264,41 @@ async function main() {
 
       const fetchTasks = freshCards.map((card) =>
         limit(async () => {
+          const articleBrand = card.resolvedBrand || brand;
+          // Quyết định nhận/bỏ bài chỉ tính 1 lần: trong shouldCapture (trước khi
+          // chụp ảnh) hoặc sau fetch nếu không chụp. claim() đăng ký bài ngay.
+          let verdict = null;
+          const evaluate = (info) => {
+            if (verdict) return verdict;
+            const resolvedUrl = info.finalUrl;
+            if (isBlockedPublisherDomain(extractHostname(resolvedUrl)) || isBlockedPublisherDomain(resolvedUrl)) {
+              verdict = { accept: false, why: 'blocked' };
+            } else if (!isPublishDateWithinRange(info.publishDate, dateRange)) {
+              verdict = { accept: false, why: 'out-of-range' };
+            } else {
+              const claim = articleRegistry.claim({
+                scope: articleBrand,
+                finalUrl: resolvedUrl,
+                title: info.articleTitle || cleanTitleText(card.title),
+                canonicalUrl: info.canonicalUrl,
+                ogUrl: info.ogUrl,
+                alternateUrls: info.alternateUrls,
+              });
+              verdict = claim.duplicate
+                ? { accept: false, why: 'duplicate', claim }
+                : { accept: true, articleId: claim.articleId };
+            }
+            return verdict;
+          };
+
           try {
-            const { finalUrl, publishDate, articleTitle } = await fetchArticle(card.url, {
-              brand: card.resolvedBrand || brand,
+            const result = await fetchArticle(card.url, {
+              brand: articleBrand,
               publisherDomain: card.publisherDomain || '',
               screenshotDir,
-              shouldCapture: ({ finalUrl: resolvedUrl, publishDate: resolvedDate }) => {
-                const resolvedDomain = extractHostname(resolvedUrl);
-                return !isBlockedPublisherDomain(resolvedDomain) &&
-                  !isBlockedPublisherDomain(resolvedUrl) &&
-                  isPublishDateWithinRange(resolvedDate, dateRange);
-              },
+              shouldCapture: (info) => evaluate(info).accept,
             });
+            const { finalUrl, publishDate, articleTitle } = result;
 
             // publisherDomain: ưu tiên dùng domain từ card nếu trông như domain
             // (có dấu chấm), fallback về hostname của finalUrl
@@ -280,13 +307,21 @@ async function main() {
               ? rawDomain.replace(/^www\./i, '').toLowerCase()
               : extractHostname(finalUrl);
 
-            if (isBlockedPublisherDomain(publisherDomain) || isBlockedPublisherDomain(finalUrl)) {
-              log.skipBrand(card.resolvedBrand || brand, card.title, finalUrl);
+            if (isBlockedPublisherDomain(publisherDomain)) {
+              log.skipBrand(articleBrand, card.title, finalUrl);
               return false;
             }
 
-            if (!isPublishDateWithinRange(publishDate, dateRange)) {
-              log.info(`Skip out-of-range article (${describeDateRange(dateRange)}): ${finalUrl}`);
+            const decision = evaluate(result);
+            if (!decision.accept) {
+              if (decision.why === 'blocked') {
+                log.skipBrand(articleBrand, card.title, finalUrl);
+              } else if (decision.why === 'out-of-range') {
+                log.info(`Skip out-of-range article (${describeDateRange(dateRange)}): ${finalUrl}`);
+              } else {
+                log.skipSameArticle(finalUrl, decision.claim.matchedUrl, decision.claim.reason);
+                totalMerged++;
+              }
               return false;
             }
 
@@ -299,6 +334,7 @@ async function main() {
               publish_date:       formatDateVN(publishDate),
               sentiment:          card.classificationSentiment,
               classification_source: card.classificationSource,
+              article_id:         decision.articleId,
             };
 
             await csv.writeRow(row);
@@ -317,6 +353,7 @@ async function main() {
     }
 
     log.done(brand, queries.length, brandArticles, brandErrors);
+    if (brandArticles === 0) brandsWithoutArticles.push(brand);
     totalErrors += brandErrors;
   }
 
@@ -328,6 +365,42 @@ async function main() {
 
   // ── Final summary ──────────────────────────────────────────────────────────
   log.summary(totalArticles, totalErrors, outputPath);
+  reportRunHealth({ totalMerged, brandsWithoutArticles, searchStats: getSearchStats() });
+}
+
+/**
+ * Cảnh báo cuối run: brand 0 bài, selector Google nghi hỏng, query bị CAPTCHA.
+ * Đọc các dòng [HEALTH] trong log để biết run có cần người kiểm tra không.
+ */
+function reportRunHealth({ totalMerged, brandsWithoutArticles, searchStats }) {
+  const list = (items) => items.map((item) => `"${item}"`).join(', ');
+
+  log.health(`Same article merged after fetch (lang/AMP/canonical/hreflang): ${totalMerged}`);
+  log.health(
+    `Queries via RSS: ${searchStats.rssQueries} | via browser fallback: ${searchStats.browserQueries}` +
+    ` | CAPTCHA solved manually: ${searchStats.captchaSolved}`
+  );
+
+  if (brandsWithoutArticles.length > 0) {
+    log.health(`WARN brands with 0 articles: ${list(brandsWithoutArticles)}`);
+  }
+  if (searchStats.selectorSuspectQueries.length > 0) {
+    log.health(
+      `WARN Google selectors likely outdated (${searchStats.selectorSuspectQueries.length} queries): ` +
+      `${list(searchStats.selectorSuspectQueries)} → update src/config/googleSelectors.json, see logs/selector-debug/`
+    );
+  } else if (searchStats.browserZeroQueries.length > 0) {
+    log.health(`Browser fallback returned 0 cards (no sign of selector breakage): ${list(searchStats.browserZeroQueries)}`);
+  }
+  if (searchStats.captchaBlockedQueries.length > 0) {
+    log.health(`WARN queries skipped by unsolved CAPTCHA: ${list(searchStats.captchaBlockedQueries)}`);
+  }
+  if (searchStats.browserSkippedQueries.length > 0) {
+    log.health(
+      `WARN queries skipped because browser fallback was disabled after CAPTCHA: ` +
+      `${list(searchStats.browserSkippedQueries)}`
+    );
+  }
 }
 
 // ─── Top-level error handler ──────────────────────────────────────────────────

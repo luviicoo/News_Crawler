@@ -141,5 +141,108 @@ test('artifact module writes UTF-8 BOM CSV and creates stable slugs', async (con
   const content = fs.readFileSync(outputPath, 'utf8');
   assert.equal(content.charCodeAt(0), 0xFEFF);
   assert.match(content, /"Tiêu đề, có dấu phẩy"/);
+  assert.match(content.split('\n')[0], /,article_id$/);
   assert.equal(slugify('Bảo Việt Nhân Thọ'), 'bao_viet_nhan_tho');
+});
+
+test('article key treats language, AMP, mobile and configured slug-ID variants as one article', () => {
+  const { buildArticleKey, isDuplicate, markSeen } = require('../src/parser/urlParser');
+
+  const vn = buildArticleKey('https://www.prudential.com.vn/vn/tin-tuc/bai-viet-a/');
+  assert.equal(buildArticleKey('https://prudential.com.vn/en/tin-tuc/bai-viet-a?lang=en'), vn);
+  assert.equal(buildArticleKey('https://m.prudential.com.vn/vi-vn/tin-tuc/bai-viet-a/amp'), vn);
+  assert.notEqual(buildArticleKey('https://prudential.com.vn/en/tin-tuc/bai-viet-b'), vn);
+
+  assert.equal(
+    buildArticleKey('https://vietnam.vn/prudential-viet-nam-giu-vung-vi-the-298454'),
+    buildArticleKey('https://vietnam.vn/prudential-viet-nam-giu-vung-vi-the')
+  );
+  // A year is not an ID suffix: different reports must stay distinct.
+  assert.notEqual(
+    buildArticleKey('https://vietnam.vn/prudential-cong-bo-bao-cao-tai-chinh-2024'),
+    buildArticleKey('https://vietnam.vn/prudential-cong-bo-bao-cao-tai-chinh-2025')
+  );
+  // Numeric suffix is the article ID on other sites: must stay distinct.
+  assert.notEqual(
+    buildArticleKey('https://vnexpress.net/bai-viet-4567890.html'),
+    buildArticleKey('https://vnexpress.net/bai-viet-4567891.html')
+  );
+
+  resetSeenUrls();
+  markSeen('https://site.vn/vn/a', 'AIA Viet Nam');
+  assert.equal(isDuplicate('https://site.vn/en/a', 'AIA Viet Nam'), true);
+  resetSeenUrls();
+});
+
+test('article registry merges same article across URLs but not on weak evidence', () => {
+  const { createArticleRegistry } = require('../src/parser/articleIdentity');
+  const registry = createArticleRegistry();
+  const scope = 'Prudential Viet Nam';
+
+  const first = registry.claim({
+    scope,
+    finalUrl: 'https://site.vn/vn/tin-tuc/ra-mat-san-pham-moi',
+    title: 'Prudential ra mắt sản phẩm mới',
+    alternateUrls: ['https://site.vn/en/news/new-product-launch', 'https://site.vn/'],
+  });
+  assert.equal(first.duplicate, false);
+  assert.match(first.articleId, /^art_[0-9a-f]{12}$/);
+
+  // Same path, other language → same article without title match.
+  const sameLangPath = registry.claim({ scope, finalUrl: 'https://site.vn/en/tin-tuc/ra-mat-san-pham-moi', title: 'Other' });
+  assert.equal(sameLangPath.duplicate, true);
+  assert.equal(sameLangPath.articleId, first.articleId);
+
+  // English slug declared via hreflang → same article.
+  const english = registry.claim({ scope, finalUrl: 'https://site.vn/en/news/new-product-launch', title: 'Prudential launches new product' });
+  assert.equal(english.duplicate, true);
+  assert.equal(english.reason, 'language-alternate');
+
+  // Same article in another brand scope is kept.
+  assert.equal(registry.claim({ scope: 'AIA Viet Nam', finalUrl: 'https://site.vn/vn/tin-tuc/ra-mat-san-pham-moi' }).duplicate, false);
+
+  // Wrong canonical (points at another article, different title) → kept separately.
+  const wrongCanonical = registry.claim({
+    scope,
+    finalUrl: 'https://site.vn/vn/tin-tuc/bai-khac',
+    title: 'Một bài hoàn toàn khác',
+    canonicalUrl: 'https://site.vn/vn/tin-tuc/ra-mat-san-pham-moi',
+  });
+  assert.equal(wrongCanonical.duplicate, false);
+
+  // Canonical + same title → merged.
+  const viaCanonical = registry.claim({
+    scope,
+    finalUrl: 'https://site.vn/chuyen-muc/ra-mat-san-pham-moi-ban-in',
+    title: 'Prudential ra mắt sản phẩm mới',
+    canonicalUrl: 'https://site.vn/vn/tin-tuc/ra-mat-san-pham-moi',
+  });
+  assert.equal(viaCanonical.duplicate, true);
+  assert.equal(viaCanonical.reason, 'canonical+title');
+
+  // Homepage hreflang must not glue unrelated articles together.
+  assert.equal(registry.claim({ scope, finalUrl: 'https://site.vn/', title: 'Trang chủ site' }).duplicate, false);
+
+  // Cross-site canonical is ignored.
+  const syndicated = registry.claim({
+    scope,
+    finalUrl: 'https://other.vn/ra-mat-san-pham-moi',
+    title: 'Prudential ra mắt sản phẩm mới',
+    canonicalUrl: 'https://site.vn/vn/tin-tuc/ra-mat-san-pham-moi',
+  });
+  assert.equal(syndicated.duplicate, false);
+
+  // ID is stable across runs.
+  assert.equal(
+    createArticleRegistry().claim({ scope, finalUrl: 'https://site.vn/en/tin-tuc/ra-mat-san-pham-moi' }).articleId,
+    first.articleId
+  );
+});
+
+test('Google selector config has the keys the crawler reads', () => {
+  const selectors = require('../src/config/googleSelectors.json');
+  for (const key of ['resultsRoot', 'cardContainerAttributes', 'headline', 'publisher', 'consentButtons', 'captchaPatterns', 'noResultsPatterns']) {
+    assert.ok(Array.isArray(selectors[key]) && selectors[key].length > 0, key);
+  }
+  assert.equal(typeof selectors.searchBox, 'string');
 });

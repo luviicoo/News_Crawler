@@ -137,6 +137,33 @@ async function extractArticleTitle(page) {
   return candidates.find(isUsableArticleTitle) || '';
 }
 
+const EMPTY_IDENTITY = { canonicalUrl: '', ogUrl: '', alternateUrls: [] };
+
+/**
+ * Link định danh của trang: canonical, og:url, hreflang (bản ngôn ngữ khác).
+ * Dùng để chống trùng bài ở index.js (src/parser/articleIdentity.js).
+ */
+async function extractIdentityLinks(page) {
+  return page.evaluate(() => {
+    const absolute = (value) => {
+      try {
+        const url = new URL(String(value || '').trim(), document.baseURI);
+        return /^https?:$/.test(url.protocol) ? url.toString() : '';
+      } catch (_) {
+        return '';
+      }
+    };
+
+    return {
+      canonicalUrl: absolute(document.querySelector('link[rel="canonical"]')?.getAttribute('href')),
+      ogUrl: absolute(document.querySelector('meta[property="og:url"]')?.getAttribute('content')),
+      alternateUrls: Array.from(document.querySelectorAll('link[rel="alternate"][hreflang]'))
+        .map((link) => absolute(link.getAttribute('href')))
+        .filter(Boolean),
+    };
+  }).catch(() => ({ ...EMPTY_IDENTITY }));
+}
+
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 /**
@@ -150,7 +177,8 @@ async function extractArticleTitle(page) {
  * @param {string}      opts.screenshotDir   Thư mục lưu ảnh PNG
  * @param {Function}    opts.shouldCapture   Chỉ chụp sau khi URL/ngày đã được kiểm tra
  *
- * @returns {Promise<{finalUrl:string, publishDate:string|null, screenshotPath:string|null, articleTitle:string}>}
+ * @returns {Promise<{finalUrl:string, publishDate:string|null, screenshotPath:string|null, articleTitle:string,
+ *   canonicalUrl:string, ogUrl:string, alternateUrls:string[]}>}
  */
 async function fetchArticle(url, {
   brand = '',
@@ -198,6 +226,7 @@ async function fetchArticle(url, {
 
       const canonicalFinalUrl = resolveGoogleRedirect(finalUrl) || finalUrl;
       const articleTitle = await extractArticleTitle(page);
+      const identity = await extractIdentityLinks(page);
 
       // Trích xuất ngày đăng (7 fallback strategies)
       const publishDate = await extractPublishDate(page, canonicalFinalUrl);
@@ -208,6 +237,7 @@ async function fetchArticle(url, {
         finalUrl: canonicalFinalUrl,
         publishDate,
         articleTitle,
+        ...identity,
       });
       if (captureAllowed) {
         screenshotPath = await captureArticleScreenshot(page, {
@@ -226,6 +256,7 @@ async function fetchArticle(url, {
         publishDate,
         screenshotPath,
         articleTitle,
+        ...identity,
       };
 
     } catch (err) {
@@ -240,6 +271,7 @@ async function fetchArticle(url, {
           publishDate: null,
           screenshotPath: null,
           articleTitle: '',
+          ...EMPTY_IDENTITY,
         };
       }
     } finally {
@@ -252,6 +284,7 @@ async function fetchArticle(url, {
     publishDate: null,
     screenshotPath: null,
     articleTitle: '',
+    ...EMPTY_IDENTITY,
   };
 }
 

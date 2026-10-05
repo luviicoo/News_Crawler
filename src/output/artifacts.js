@@ -7,7 +7,7 @@
  * opened in Microsoft Excel on Windows.
  *
  * Column order (fixed):
- *   brand | article_title | article_url | publisher_domain | publisher_homepage | publish_date | sentiment | classification_source
+ *   brand | article_title | article_url | publisher_domain | publisher_homepage | publish_date | sentiment | classification_source | article_id
  *
  * Usage:
  *   const writer = createCsvWriter(filePath);
@@ -33,6 +33,7 @@ const COLUMNS = [
   'publish_date',
   'sentiment',
   'classification_source',
+  'article_id',           // ID ổn định theo URL đã chuẩn hoá (bỏ ngôn ngữ/AMP/tracking)
 ];
 
 /**
