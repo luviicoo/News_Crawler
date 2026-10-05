@@ -1,12 +1,16 @@
-# PR Article Scraper
+# News Crawler
 
 Thu thập bài báo về 9 thương hiệu bảo hiểm Việt Nam bằng Node.js (CommonJS) và Playwright Chromium, lọc theo ngày, phân loại và xuất CSV tương thích Excel.
+
+Repository: [luviicoo/News_Crawler](https://github.com/luviicoo/News_Crawler). Đây là dự án độc lập, cài đặt và chạy bằng Node.js; toàn bộ mã nguồn, cấu hình và kiểm thử nằm trong repository này.
 
 ## Cài đặt trên Windows
 
 Yêu cầu Node.js 18 trở lên. Trong PowerShell:
 
 ```powershell
+git clone https://github.com/luviicoo/News_Crawler.git
+cd News_Crawler
 npm.cmd ci
 npx.cmd playwright install chromium
 if (-not (Test-Path -LiteralPath .env)) {
@@ -15,6 +19,8 @@ if (-not (Test-Path -LiteralPath .env)) {
 ```
 
 Chỉ sao chép file mẫu khi chưa có `.env` để tránh ghi đè cấu hình. Dùng `npm.cmd` và `npx.cmd` nếu PowerShell chặn script `.ps1`.
+
+Chạy các lệnh npm từ thư mục gốc chứa `package.json`. Có thể đặt bản clone ở bất kỳ thư mục nào. `.env`, phiên Google và đầu ra crawler mặc định đều nằm trong bản clone đó.
 
 ## Chạy crawler
 
@@ -86,7 +92,7 @@ CSV lưu tại `output/articles_YYYYMMDD_HHmmss.csv` (hoặc `OUTPUT_DIR`), mã 
 
 ## Chụp ảnh từ danh sách bài có sẵn
 
-`src/capture_pr_images.js` phục vụ luồng tích hợp và chạy riêng với file JSON chứa một mảng:
+`src/capture_pr_images.js` là công cụ chụp ảnh riêng, nhận file JSON chứa một mảng:
 
 ```json
 [
@@ -145,5 +151,6 @@ Test kiểm tra ngày, URL, loại trùng, tiếng Việt, phân loại bằng q
 | `.google-state.json` | Cookies/localStorage; xóa sẽ đặt lại phiên Google |
 | `node_modules/` | Thư viện đang dùng; chỉ xóa khi muốn cài lại bằng `npm.cmd ci` |
 | `test/core.test.js` | Bộ test còn dùng bởi `npm.cmd test`; giữ để kiểm tra chức năng |
+| `REPO_LOCATION.md` | Thông tin repository và quy ước đường dẫn của dự án |
 
 Giữ `src/`, `package.json`, `package-lock.json`, `.env.example` và `.gitignore` để cài đặt và chạy chương trình. Không đưa `.env` hoặc phiên Google vào Git.

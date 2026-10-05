@@ -10,7 +10,7 @@
  *
  * The exported classifyArticle() keeps compatibility with the current crawler
  * by returning decision/brand/source/sentiment/confidence/reason fields, while
- * also exposing the richer status fields requested for the listening workflow.
+ * also exposing classification status fields for crawler output and callers.
  */
 
 const log = require('../output/logger');

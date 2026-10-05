@@ -1,7 +1,11 @@
 {
-  "name": "pr-article-scraper",
+  "name": "news-crawler",
   "version": "1.0.0",
-  "description": "Playwright-based Google News crawler for Vietnamese insurance brands",
+  "description": "Standalone Playwright-based Google News crawler for Vietnamese insurance brands",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luviicoo/News_Crawler.git"
+  },
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
