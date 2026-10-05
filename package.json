@@ -1,0 +1,23 @@
+{
+  "name": "pr-article-scraper",
+  "version": "1.0.0",
+  "description": "Playwright-based Google News crawler for Vietnamese insurance brands",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "start:headless": "node src/index.js --headless",
+    "capture:pr-images": "node src/capture_pr_images.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "p-limit": "^3.1.0",
+    "playwright": "^1.44.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

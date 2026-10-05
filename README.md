@@ -1,1 +1,149 @@
-# News_Crawler
+# PR Article Scraper
+
+Thu thập bài báo về 9 thương hiệu bảo hiểm Việt Nam bằng Node.js (CommonJS) và Playwright Chromium, lọc theo ngày, phân loại và xuất CSV tương thích Excel.
+
+## Cài đặt trên Windows
+
+Yêu cầu Node.js 18 trở lên. Trong PowerShell:
+
+```powershell
+npm.cmd ci
+npx.cmd playwright install chromium
+if (-not (Test-Path -LiteralPath .env)) {
+  Copy-Item -LiteralPath .env.example -Destination .env
+}
+```
+
+Chỉ sao chép file mẫu khi chưa có `.env` để tránh ghi đè cấu hình. Dùng `npm.cmd` và `npx.cmd` nếu PowerShell chặn script `.ps1`.
+
+## Chạy crawler
+
+```powershell
+# Mở cửa sổ trình duyệt
+npm.cmd start
+
+# Chạy ẩn trình duyệt
+npm.cmd run start:headless
+
+# Khoảng ngày gồm cả ngày đầu và ngày cuối
+npm.cmd run start:headless -- --date-from 2026-09-01 --date-to 2026-09-13
+```
+
+Mặc định lấy 7 ngày tính cả hôm nay theo giờ Việt Nam (UTC+7). Có thể đặt `DATE_FROM` và `DATE_TO` trong `.env`; tham số dòng lệnh được ưu tiên. Cung cấp cả hai ngày theo định dạng `YYYY-MM-DD`. Nếu thiếu một đầu khoảng, chương trình dùng khoảng mặc định; nếu ngày đầu lớn hơn ngày cuối, chương trình tự đổi thứ tự.
+
+Các thương hiệu: Sun Life, Chubb Life, FWD, Dai-ichi Life, AIA, Bảo Việt Nhân Thọ, Prudential, Manulife và Generali. Sửa tên, bí danh và truy vấn tại `src/config/brands.js`.
+
+## Luồng xử lý
+
+1. Tìm qua Google News RSS; nếu RSS lỗi hoặc không có kết quả, chuyển sang tìm bằng trình duyệt.
+2. Phân loại thẻ kết quả để loại tin không liên quan, xác định thương hiệu và sắc thái.
+3. Chuẩn hóa URL và loại trùng theo từng thương hiệu trong lần chạy. Bài nhắc nhiều thương hiệu có thể xuất hiện cho nhiều thương hiệu.
+4. Tải chi tiết bài với số tác vụ đồng thời giới hạn; lấy tiêu đề, URL cuối và ngày đăng từ metadata, JSON-LD, URL hoặc văn bản trang.
+5. Loại bài không xác định được ngày hoặc nằm ngoài khoảng ngày; bỏ nguồn trong danh sách chặn của `src/index.js`.
+6. Chụp phần đầu trang của bài hợp lệ và ghi từng dòng CSV.
+
+Phân loại diễn ra trước khi tải chi tiết bài và chủ yếu dựa trên dữ liệu tìm kiếm trong luồng crawler hiện tại. Lỗi chụp ảnh được ghi log và không nhất thiết làm mất dòng CSV.
+
+## Cấu hình
+
+`.env` luôn được đọc tại gốc scraper, kể cả khi gọi từ thư mục khác.
+
+| Biến | Mặc định trong mã | Ý nghĩa |
+| --- | --- | --- |
+| `HEADLESS` | `false` | Đặt `true` để ẩn trình duyệt; `--headless` cũng bật chế độ này |
+| `DATE_FROM`, `DATE_TO` | 7 ngày gần nhất | Khoảng ngày theo giờ Việt Nam |
+| `ARTICLE_CONCURRENCY` | `3` | Số bài tải đồng thời trong mỗi truy vấn |
+| `PAGE_TIMEOUT` | `30000` | Thời gian chờ điều hướng, mili giây |
+| `SEARCH_DELAY_MIN`, `SEARCH_DELAY_MAX` | `3000`, `6000` | Khoảng nghỉ trước mỗi truy vấn, mili giây |
+| `ARTICLE_DELAY_MIN`, `ARTICLE_DELAY_MAX` | `500`, `1500` | Khoảng nghỉ tải bài, mili giây |
+| `CAPTCHA_PAUSE_MS` | `30000` | Thời gian chờ xử lý CAPTCHA |
+| `OUTPUT_DIR` | `output` | Thư mục đầu ra, tương đối từ gốc scraper |
+| `CLASSIFIER_MODE` | `rules` | `rules`, `hybrid` hoặc `gemini` |
+| `CLASSIFIER_REVIEW_FALLBACK` | `reject` | `reject` hoặc `accept`; `accept` vẫn yêu cầu tín hiệu thương hiệu mục tiêu |
+| `GEMINI_API_KEY` | Trống | Khóa Gemini; cũng hỗ trợ `GOOGLE_API_KEY` |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Mô hình; cũng hỗ trợ `GOOGLE_AI_MODEL` |
+| `GEMINI_TIMEOUT_MS` | `15000` | Thời gian chờ Gemini, mili giây |
+| `PR_IMAGE_CAPTURE_CONCURRENCY` | `3` | Số tác vụ của script chụp ảnh riêng, giới hạn 1–6 |
+
+File `.env.example` chọn `hybrid` và `gemini-2.5-pro`, khác mặc định trong mã. `rules` chỉ dùng quy tắc; `hybrid` gọi Gemini cho trường hợp cần xét thêm; `gemini` gọi mô hình cho bài vượt qua bộ lọc sơ bộ. Nếu thiếu khóa hoặc API lỗi, chương trình dùng xử lý dự phòng. Đặt `CLASSIFIER_MODE=rules` để chạy chỉ bằng quy tắc.
+
+## Đầu ra
+
+CSV lưu tại `output/articles_YYYYMMDD_HHmmss.csv` (hoặc `OUTPUT_DIR`), mã hóa UTF-8 có BOM. Tên file dùng thời gian của máy chạy.
+
+| Cột | Nội dung |
+| --- | --- |
+| `brand` | Thương hiệu được phân loại |
+| `article_title` | Tiêu đề bài báo |
+| `article_url` | URL sau khi xử lý chuyển hướng |
+| `publisher_domain` | Domain nguồn báo |
+| `publisher_homepage` | Trang chủ nguồn báo |
+| `publish_date` | Giờ Việt Nam: `HH:mm:ss DD/MM/YYYY` |
+| `sentiment` | Sắc thái do bộ phân loại trả về |
+| `classification_source` | Nguồn phân loại, ví dụ `rules` |
+
+Ảnh PNG lưu trong `output/screenshots/`, chụp khung nhìn 800 × 800 pixel ở đầu trang. Tên ảnh kết hợp thương hiệu, domain, ngày và mã băm URL. CSV ghi tăng dần để giữ phần kết quả đã ghi khi tiến trình bị ngắt.
+
+## Chụp ảnh từ danh sách bài có sẵn
+
+`src/capture_pr_images.js` phục vụ luồng tích hợp và chạy riêng với file JSON chứa một mảng:
+
+```json
+[
+  {
+    "link": "https://example.com/article",
+    "player": "AIA Viet Nam",
+    "publisherDomain": "example.com",
+    "screenshotDir": "output/screenshots"
+  }
+]
+```
+
+```powershell
+npm.cmd run capture:pr-images -- .\articles.json
+```
+
+Script chạy headless. Đường dẫn JSON và `screenshotDir` tương đối tính từ thư mục làm việc khi chạy lệnh. Nên dùng đường dẫn tuyệt đối khi gọi từ ứng dụng khác.
+
+## Cấu trúc thư mục
+
+```text
+src/
+  index.js                    Điều phối crawler, lọc ngày
+  capture_pr_images.js        Chụp ảnh từ danh sách JSON
+  config/brands.js            Thương hiệu, bí danh, truy vấn
+  crawler/browser.js          Chromium và phiên Google
+  crawler/google.js           Tìm kiếm RSS và trình duyệt
+  crawler/article.js          Tải bài, lấy tiêu đề/ngày đăng
+  parser/dateParser.js        Phân tích và định dạng ngày
+  parser/urlParser.js         Chuyển hướng, chuẩn hóa, loại trùng
+  output/artifacts.js         CSV và ảnh chụp
+  output/logger.js            Log ra console
+  utils/articleClassifier.js  Quy tắc và Gemini
+test/core.test.js             Kiểm thử chức năng hiện tại
+```
+
+## Kiểm thử và xử lý lỗi
+
+```powershell
+npm.cmd test
+```
+
+Test kiểm tra ngày, URL, loại trùng, tiếng Việt, phân loại bằng quy tắc và CSV. Test không tìm kiếm Google hoặc gọi Gemini, không xác nhận tích hợp mạng.
+
+- Thiếu Chromium: chạy `npx.cmd playwright install chromium`.
+- CAPTCHA: chạy có cửa sổ trình duyệt để xử lý và tăng khoảng nghỉ.
+- Kết quả ít hoặc rỗng: kiểm tra khoảng ngày, log phân loại, nguồn bị chặn và selector trong `src/crawler/google.js`.
+- Excel hiển thị sai tiếng Việt: nhập qua **Data → From Text/CSV**, chọn UTF-8.
+
+## Dọn thư mục
+
+| Thành phần | Cách xử lý |
+| --- | --- |
+| `output/` | CSV và ảnh từ các lần chạy; có thể xóa nếu không cần lưu kết quả. Chương trình tự tạo lại khi xuất dữ liệu |
+| `logs/` | Log các lần chạy trước; có thể xóa nếu không cần đối chiếu |
+| `.google-state.json` | Cookies/localStorage; xóa sẽ đặt lại phiên Google |
+| `node_modules/` | Thư viện đang dùng; chỉ xóa khi muốn cài lại bằng `npm.cmd ci` |
+| `test/core.test.js` | Bộ test còn dùng bởi `npm.cmd test`; giữ để kiểm tra chức năng |
+
+Giữ `src/`, `package.json`, `package-lock.json`, `.env.example` và `.gitignore` để cài đặt và chạy chương trình. Không đưa `.env` hoặc phiên Google vào Git.
