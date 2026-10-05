@@ -18,5 +18,6 @@ For `capture:pr-images`, the input JSON path and each item's relative
 `screenshotDir` resolve from the command's working directory. Run the command
 from the repository root or provide absolute paths.
 
-Local credentials, browser state, dependencies, and generated output are
-excluded from Git by `.gitignore`.
+Project output in `output/` and run logs in `logs/` are tracked in Git.
+Local credentials, browser state, dependencies, and Git history backups
+are excluded from Git by `.gitignore`.

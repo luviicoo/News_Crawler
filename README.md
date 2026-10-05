@@ -146,8 +146,8 @@ Test kiểm tra ngày, URL, loại trùng, tiếng Việt, phân loại bằng q
 
 | Thành phần | Cách xử lý |
 | --- | --- |
-| `output/` | CSV và ảnh từ các lần chạy; có thể xóa nếu không cần lưu kết quả. Chương trình tự tạo lại khi xuất dữ liệu |
-| `logs/` | Log các lần chạy trước; có thể xóa nếu không cần đối chiếu |
+| `output/` | CSV, báo cáo và ảnh từ các lần chạy; được lưu trong Git để chia sẻ và theo dõi lịch sử |
+| `logs/` | Log các lần chạy; được lưu trong Git để đối chiếu kết quả |
 | `.google-state.json` | Cookies/localStorage; xóa sẽ đặt lại phiên Google |
 | `node_modules/` | Thư viện đang dùng; chỉ xóa khi muốn cài lại bằng `npm.cmd ci` |
 | `test/core.test.js` | Bộ test còn dùng bởi `npm.cmd test`; giữ để kiểm tra chức năng |

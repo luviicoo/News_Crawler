@@ -4,8 +4,6 @@
 !/.env.example
 /.google-state.json
 /node_modules/
-/output/
-/logs/
 /.git.misplaced-backup-*/
 npm-debug.log*
 yarn-debug.log*
