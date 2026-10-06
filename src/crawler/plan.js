@@ -33,7 +33,7 @@ function buildSearchPlan(brands, range, { publishers = DEFAULT_PUBLISHERS, web =
     const id = createHash('sha256').update(key).digest('hex').slice(0, 20);
     tasks.set(id, { id, brand, query, dateRange, channel, kind });
   };
-  for (const { brand, queries } of brands) {
+  for (const { brand, queries, siteQuery = queries[0] } of brands) {
     // Keep broad rankings as well as narrower windows. Coverage never depends
     // on a feed hitting 100: an unsaturated feed can still miss indexed stories.
     for (const query of queries) add(brand, query, range, 'rss', 'whole-range');
@@ -43,7 +43,7 @@ function buildSearchPlan(brands, range, { publishers = DEFAULT_PUBLISHERS, web =
     }
     for (const year of windows(range, 'year')) {
       for (const domain of [...new Set(publishers)]) {
-        const query = `${queries[0]} site:${domain}`;
+        const query = `${siteQuery} site:${domain}`;
         add(brand, query, year, 'rss', 'publisher-year');
         if (web) add(brand, query, year, 'web', 'publisher-year');
       }

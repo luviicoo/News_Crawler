@@ -49,15 +49,33 @@ Trình duyệt tìm kiếm dự phòng, tải bài và chụp ảnh đều chạ
 RSS ở đây là **RSS tìm kiếm của Google News**, không phải RSS riêng của từng báo. Mỗi truy vấn tạo một URL `https://news.google.com/rss/search?q=...&hl=vi&gl=VN&ceid=VN:vi`. Ví dụ tháng 01/2018: `"Prudential" after:2017-12-31 before:2018-02-01`; thêm `site:vnexpress.net` để tìm trong một báo. Khoảng ngày cuối cùng vẫn được kiểm tra theo ngày đăng thật của bài ở UTC+7.
 
 1. Lập toàn bộ kế hoạch trước khi tìm: từng từ khóa cho cả khoảng ngày và từng tháng; thêm từ khóa thương hiệu + `site:` cho từng báo, từng năm. Mặc định có 16 báo trong `src/crawler/plan.js`, thay được bằng `--publishers` hoặc `PUBLISHER_DOMAINS`.
-2. Chạy các truy vấn RSS. Tìm theo tháng/báo luôn được thực hiện, kể cả RSS trả ít hơn 100 kết quả. Feed từ 100 bài được chia đôi tiếp xuống một ngày, giữ cả kết quả của cửa sổ cha và con. Ngày vẫn chạm giới hạn được ghi trong báo cáo độ phủ.
+2. Chạy các truy vấn RSS. Tìm theo tháng/báo luôn được thực hiện, kể cả RSS trả ít hơn 100 kết quả. Feed từ 100 bài được chia đôi tiếp xuống một ngày, giữ cả kết quả của cửa sổ cha và con. Truy vấn RSS (kể cả truy vấn con khi chia đôi) nghỉ `RSS_DELAY_*`, ngắn hơn Web; bài của truy vấn trước được đọc song song khi RSS tìm tiếp. Truy vấn theo báo dùng `siteQuery` có ngoặc kép nếu hãng khai báo (Bảo Việt: không có ngoặc kép, mỗi báo trả hàng nghìn bài không liên quan). Ngày vẫn chạm giới hạn được ghi trong báo cáo độ phủ.
 3. Chạy **Google Web** bổ sung theo tháng và báo/năm dù RSS đã có bài. Trình duyệt chạy ẩn; chỉ CAPTCHA mới mở cửa sổ xác thực. Web phân trang tối đa `WEB_MAX_PAGES`; chạm giới hạn, bị chặn hoặc không đọc được giao diện được ghi là chưa hoàn tất.
-4. Lưu các URL tìm được vào tiến độ trước khi đánh dấu truy vấn xong. Mở bài, giải chuyển hướng, đọc tiêu đề, thân bài, ngày đăng và liên kết định danh. Không loại bài chỉ vì tiêu đề chưa nhắc thương hiệu.
+4. Lưu các URL tìm được vào tiến độ trước khi đánh dấu truy vấn xong. Mở bài, giải chuyển hướng, đọc tiêu đề, thân bài, ngày đăng và liên kết định danh. Không loại bài chỉ vì tiêu đề chưa nhắc thương hiệu. Một URL được hãng khác tìm thấy lại không bị mở lần nữa: kết quả lần đọc trước (hãng có trong bài, ngoài khoảng ngày, không phải bài báo) được dùng lại.
 5. Phân loại bằng tiêu đề **và thân bài**. Ưu tiên vùng nội dung của báo, bỏ sidebar/tin liên quan. Bài nhắc từ 2 hãng trở lên (trong tiêu đề/thân bài) được ghi **một lần** với `brand = Ngành bảo hiểm`, danh sách hãng nằm ở cột `mentioned_brands`; không lặp lại cho từng hãng. Prudential Financial/plc, Manulife Financial, Bảo hiểm Bảo Việt... không được tính là nhắc hãng. Loại Prudential Finance, Prudential Financial và tên tòa nhà nhầm với Prudential Việt Nam. Phạm vi là các bài nhắc hãng, gồm tin ngành/CSR/khiếu nại, không chỉ thông cáo tích cực.
 6. Loại trùng theo từng hãng (bài ngành dùng chung một phạm vi, nên tìm lại qua hãng khác vẫn tính là trùng) bằng URL chuẩn hóa, AMP/mobile/ngôn ngữ, hreflang và canonical cùng tiêu đề. Lưu cả liên kết định danh để khôi phục bộ chống trùng khi chạy tiếp. Một bài đăng ở hai báo vẫn tính là hai lần xuất hiện.
 7. Lưu bài hợp lệ vào nhật ký tiến độ trước khi ghi CSV. Mặc định không chụp ảnh; muốn chụp dùng `--screenshots` hoặc `SCREENSHOTS=true`.
 8. Cập nhật báo cáo `.coverage.json`: toàn bộ truy vấn, trạng thái, số bài mỗi năm, ngày RSS chạm giới hạn và các URL chưa đọc/xác minh ngày được. Không đổi CAPTCHA/lỗi tải thành “0 bài, đã xong”.
 
 Với Prudential từ 2018 đến 30/09/2026, kế hoạch mặc định gồm **568 truy vấn RSS và 249 truy vấn Web**; RSS có thể phát sinh thêm truy vấn con khi chạm giới hạn. RSS và Web đều phụ thuộc bài được Google lập chỉ mục, nên hoàn tất kế hoạch không chứng minh đã có mọi bài từng được xuất bản.
+
+## Cập nhật hằng ngày
+
+Sau khi đã kéo dữ liệu lịch sử, chạy mỗi ngày:
+
+```powershell
+# 3 ngày gần nhất (mặc định), chỉ RSS, ghi cộng dồn vào output/daily_all_brands.csv
+npm.cmd start -- --daily --dedupe-with output/all_brands_20180101_20260930.csv
+
+# Một hãng, 2 ngày gần nhất
+npm.cmd start -- --brand Prudential --daily --days 2 --dedupe-with output/prudential_viet_nam_20180101_20260930.csv
+```
+
+- `--daily` lấy `--days` ngày gần nhất (1–30, mặc định 3; hoặc `DAILY_DAYS`), không chạy Web, không nhận `--date-from/--date-to`.
+- CSV và checkpoint là **một bộ cố định** (`daily_<hãng>.csv`), mỗi ngày chỉ thêm bài mới; cửa sổ ngày chồng lên nhau không tạo dòng trùng và không đọc lại bài đã xử lý.
+- `--dedupe-with` (hoặc `DEDUPE_WITH`) nhận CSV hoặc `.state.jsonl` của lần kéo lịch sử, phân cách bằng dấu phẩy, để không thêm lại bài đã có.
+- Trang tải được, có tiêu đề nhưng không có thân bài (trang danh mục, hồ sơ, thông số xe…) được xếp `not-article` ngay; chế độ lịch sử vẫn thử lại các trang này.
+- Bài lỗi được thử lại tối đa `ARTICLE_MAX_ATTEMPTS` lần (mặc định 3) qua các ngày, sau đó ghi vào `abandoned_articles` trong báo cáo độ phủ. Mã thoát `0` khi mọi truy vấn và bài trong lượt đã xử lý xong.
 
 ## Chạy tiếp và kiểm tra độ phủ
 
@@ -93,7 +111,11 @@ npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 
 | `RSS_TIMEOUT_MS` | `30000` | Thời gian chờ một yêu cầu RSS |
 | `ARTICLE_CONCURRENCY` | `3` | Số bài tải đồng thời trong mỗi truy vấn |
 | `PAGE_TIMEOUT` | `30000` | Thời gian chờ điều hướng, mili giây |
-| `SEARCH_DELAY_MIN`, `SEARCH_DELAY_MAX` | `3000`, `6000` | Khoảng nghỉ trước mỗi truy vấn, mili giây |
+| `SEARCH_DELAY_MIN`, `SEARCH_DELAY_MAX` | `3000`, `6000` | Khoảng nghỉ trước mỗi truy vấn Web, mili giây |
+| `RSS_DELAY_MIN`, `RSS_DELAY_MAX` | `1000`, `2000` | Khoảng nghỉ trước mỗi truy vấn RSS (cả truy vấn con khi chia đôi), mili giây |
+| `DAILY_DAYS` | `3` | Số ngày gần nhất cho `--daily`; CLI `--days` ưu tiên |
+| `DEDUPE_WITH` | Trống | Checkpoint/CSV lịch sử để chống trùng khi chạy `--daily` |
+| `ARTICLE_MAX_ATTEMPTS` | `3` | Số lần thử một bài lỗi ở chế độ `--daily` trước khi bỏ qua |
 | `ARTICLE_DELAY_MIN`, `ARTICLE_DELAY_MAX` | `500`, `1500` | Khoảng nghỉ tải bài, mili giây |
 | `CAPTCHA_PAUSE_MS` | `120000` | Thời gian chờ xác thực trong cửa sổ riêng; đặt `0` để bỏ qua xác thực thủ công |
 | `CAPTCHA_MAX_PER_RUN` | `2` | Số CAPTCHA không giải được trước khi tắt tìm bằng trình duyệt cho phần còn lại của run (RSS vẫn chạy) |

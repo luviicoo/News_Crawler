@@ -227,3 +227,89 @@ test('mention detection ignores foreign parents and same-name non-life businesse
   assert.deepEqual(findMentionedBrands({ title: 'Manulife và Sun Life chi trả quyền lợi bảo hiểm' }, BRANDS),
     ['Sun Life Viet Nam', 'Manulife Viet Nam']);
 });
+
+test('an article found by several brands is opened once and reused for the others', async t => {
+  const options = setup(t);
+  const aia = BRANDS.find(item => item.brand === 'AIA Viet Nam');
+  const manulife = BRANDS.find(item => item.brand === 'Manulife Viet Nam');
+  options.brands = [prudential, aia, manulife];
+  options.plan = buildSearchPlan(options.brands.map(brand => ({ ...brand, queries: [brand.queries[0]] })), range,
+    { publishers: ['example.vn'], web: false }).filter(task => task.kind === 'whole-range');
+  options.concurrency = 1;
+  const fetched = [];
+  const deps = { launchBrowser: async () => {}, closeBrowser: async () => {}, classifyArticle: classify,
+    searchRss: async () => [card('industry')],
+    fetchArticle: async url => { fetched.push(url); return article(url); },
+  };
+  const result = await runCrawl(options, deps);
+  assert.equal(fetched.length, 1);
+  assert.equal(result.accepted_articles, 1);
+  assert.equal(result.candidate_statuses.duplicate, 1); // AIA: same industry story.
+  assert.equal(result.candidate_statuses.rejected, 1); // Manulife isn't named in it.
+});
+
+test('daily mode accumulates one CSV across moving windows, dedupes against a seed checkpoint and gives up on dead links', async t => {
+  const options = setup(t);
+  const seed = setup(t);
+  // A historical checkpoint that already holds /seen.
+  await runCrawl({ ...seed, plan: seed.plan.slice(0, 1) }, { launchBrowser: async () => {}, closeBrowser: async () => {},
+    classifyArticle: classify, searchRss: async () => [card('seen')], fetchArticle: async url => article(url) });
+  let fetches = 0;
+  const day = (from, to, cards) => runCrawl({ ...options, daily: true, seedStatePaths: [seed.statePath], maxAttempts: 2,
+    dateRange: { from, to },
+    plan: buildSearchPlan([{ ...prudential, queries: ['"Prudential"'] }], { from, to }, { publishers: [], web: false }),
+  }, { launchBrowser: async () => {}, closeBrowser: async () => {}, classifyArticle: classify,
+    searchRss: async () => cards.map(card),
+    fetchArticle: async url => { fetches++; if (url.endsWith('/listing')) return article(url, { articleText: 'Tin mới' });
+      return url.endsWith('/dead') ? article(url, { error: 'HTTP 503', articleTitle: '' })
+      : article(url, { publishDate: url.endsWith('/new') ? '2024-01-13T02:00:00Z' : '2024-01-12T02:00:00Z' }); },
+  });
+  const first = await day('2024-01-10', '2024-01-12', ['old', 'seen', 'dead', 'listing']);
+  assert.equal(first.mode, 'daily');
+  assert.equal(first.accepted_this_run, 1);
+  assert.equal(first.candidate_statuses.duplicate, 1);
+  assert.equal(first.candidate_statuses['not-article'], 1);
+  const second = await day('2024-01-11', '2024-01-13', ['old', 'new', 'dead']);
+  assert.equal(second.accepted_this_run, 1);
+  assert.equal(second.accepted_articles, 2);
+  assert.equal(second.abandoned_articles.length, 1);
+  assert.equal(second.processing_complete, true);
+  assert.equal(second.coverage_checks_complete, true);
+  assert.equal(fetches, 6); // old, seen, dead, listing, then only new and the dead link's last attempt.
+  const third = await day('2024-01-12', '2024-01-14', ['dead']);
+  assert.equal(third.accepted_this_run, 0);
+  assert.equal(fetches, 6);
+  const rows = fs.readFileSync(options.outputPath, 'utf8').trim().split('\n');
+  assert.equal(rows.length, 3);
+});
+
+test('RSS waits between planned and bisected requests, with a shorter delay than web search', async t => {
+  const options = setup(t);
+  options.plan = options.plan.filter(task => task.channel === 'rss').slice(0, 2);
+  const pauses = [];
+  const deps = { launchBrowser: async () => {}, closeBrowser: async () => {}, classifyArticle: classify,
+    fetchArticle: async url => article(url),
+    searchRss: async (query, dateRange, opts) => { pauses.push(typeof opts.pause); await opts.pause(); return []; },
+  };
+  const started = Date.now();
+  await runCrawl({ ...options, rssDelayMin: 20, rssDelayMax: 20, searchDelayMin: 5000, searchDelayMax: 5000 }, deps);
+  assert.deepEqual(pauses, ['function', 'function']);
+  assert.ok(Date.now() - started < 1000);
+});
+
+test('daily CLI uses a cumulative RSS-only plan for the last N days', () => {
+  const parsed = parseArgs(['--daily', '--days', '2', '--dedupe-with', 'output/history.csv'], {});
+  assert.equal(parsed.daily, true);
+  assert.equal(parsed.web, false);
+  assert.ok(parsed.outputPath.endsWith(path.join('output', 'daily_all_brands.csv')));
+  assert.ok(parsed.seedStatePaths[0].endsWith(path.join('output', 'history.csv.state.jsonl')));
+  assert.equal(new Date(`${parsed.dateRange.to}T00:00:00Z`) - new Date(`${parsed.dateRange.from}T00:00:00Z`), 86400000);
+  assert.throws(() => parseArgs(['--daily', '--date-from', '2024-01-01', '--date-to', '2024-01-02'], {}), /--days/);
+});
+
+test('publisher searches use a quoted brand phrase when the first query is made of common words', () => {
+  const baoViet = BRANDS.find(item => item.brand === 'Bao Viet Nhan Tho');
+  const plan = buildSearchPlan([baoViet, prudential], range, { publishers: ['laodong.vn'], web: false });
+  const site = plan.filter(task => task.kind === 'publisher-year').map(task => task.query);
+  assert.deepEqual(site, ['"Bao Viet Nhan Tho" site:laodong.vn', '"Prudential" site:laodong.vn']);
+});

@@ -258,7 +258,11 @@ async function fromJsonLd(page) {
         }
       }
     } catch (_) {
-      // Malformed JSON-LD – skip
+      // Some publishers (e.g. VietNamNet) emit malformed JSON-LD that still
+      // carries a reliable datePublished; read it directly.
+      const match = String(raw || '').match(/"(?:datePublished|dateCreated)"\s*:\s*"([^"]+)"/);
+      const iso = match && parseToISO(match[1]);
+      if (iso) return iso;
     }
   }
   return null;

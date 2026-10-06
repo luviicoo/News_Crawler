@@ -171,7 +171,7 @@ async function fetchRssWithRetry(rssUrl, shouldStop = () => false) {
   }
 }
 
-async function searchGoogleNewsRss(query, dateRange, { shouldStop = () => false } = {}) {
+async function searchGoogleNewsRss(query, dateRange, { shouldStop = () => false, pause = async () => {} } = {}) {
   if (shouldStop()) throw new Error('RSS search interrupted; resume from checkpoint');
   const rssQuery = buildRssQuery(query, dateRange);
   if (!rssQuery) {
@@ -216,8 +216,11 @@ async function searchGoogleNewsRss(query, dateRange, { shouldStop = () => false 
   if (cards.length >= 100 && span > 0) {
     const midpoint = addDays(dateRange.from, Math.floor(span / 2));
     log.warn(`[RSS_LIMIT] ${query}: ${cards.length} results; splitting ${dateRange.from} -> ${dateRange.to}`);
-    const left = await searchGoogleNewsRss(query, { from: dateRange.from, to: midpoint }, { shouldStop });
-    const right = await searchGoogleNewsRss(query, { from: addDays(midpoint, 1), to: dateRange.to }, { shouldStop });
+    // Split requests are paced like planned queries to avoid bursts that trigger 429s.
+    await pause();
+    const left = await searchGoogleNewsRss(query, { from: dateRange.from, to: midpoint }, { shouldStop, pause });
+    await pause();
+    const right = await searchGoogleNewsRss(query, { from: addDays(midpoint, 1), to: dateRange.to }, { shouldStop, pause });
     const merged = new Map([...cards, ...left, ...right].map(card => [card.url, card]));
     return [...merged.values()];
   }

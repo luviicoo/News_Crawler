@@ -334,3 +334,14 @@ test('saturated RSS feeds split long windows, preserve parent results and carry 
     assert.equal(cards[0].rssPublishDate, 'Thu, 8 Feb 2018 04:00:00 GMT');
   } finally { stub.mock.restore(); }
 });
+
+test('brand mentions ignore Vietnamese lookalikes and car drivetrain labels', () => {
+  const { findMentionedBrands } = require('../src/utils/articleClassifier');
+  const mentioned = content => findMentionedBrands({ title: 'Tin tức', content }, BRANDS);
+  assert.deepEqual(mentioned('Ông Barry bảo Việt Nam là đất nước đáng để du khách ghé thăm.'), []);
+  assert.deepEqual(mentioned('Theo báo Việt Nam, tăng trưởng GDP đạt 8%.'), []);
+  assert.deepEqual(mentioned('Tran Ngoc Ha (Bao Viet Insurance Company Lai Chau) won second place.'), []);
+  assert.deepEqual(mentioned('Ở hạng Cầu trước (FWD) và Cầu sau/Hai cầu (RWD/AWD), tay đua tranh tài.'), []);
+  assert.deepEqual(mentioned('Bảo Việt Nhân thọ và Bảo hiểm FWD Việt Nam ký hợp tác.'), ['FWD Viet Nam', 'Bao Viet Nhan Tho']);
+  assert.deepEqual(mentioned('Tập đoàn Bảo Việt (BVH) được vinh danh.'), ['Bao Viet Nhan Tho']);
+});

@@ -5,6 +5,11 @@
  *
  * ASCII-safe aliases/queries avoid codepage issues when Playwright or the
  * Windows console interacts with Google search inputs.
+ *
+ * `siteQuery` is used for per-publisher `site:` searches. It must be quoted:
+ * unquoted common words (e.g. bao viet nhan tho) match nearly every article on
+ * a Vietnamese news site. It defaults to the first query; only brands whose
+ * first query floods publisher searches override it.
  */
 const BRANDS = [
   {
@@ -51,6 +56,7 @@ const BRANDS = [
     brand: 'Bao Viet Nhan Tho',
     aliases: ['Bao Viet Nhan Tho', 'Bao Viet Life', 'Baoviet Life', 'Bao Viet'],
     queries: ['bao viet nhan tho', 'baoviet life tin tuc'],
+    siteQuery: '"Bao Viet Nhan Tho"',
   },
   {
     brand: 'Prudential Viet Nam',

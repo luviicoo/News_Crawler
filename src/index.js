@@ -32,15 +32,15 @@ function shiftDateKey(dateKey, offsetDays) {
   return date.toISOString().slice(0, 10);
 }
 
-function getDefaultDateRange() {
+function getDefaultDateRange(days = 7) {
   const today = toVietnamDateKey(new Date().toISOString());
-  return { from: shiftDateKey(today, -6), to: today };
+  return { from: shiftDateKey(today, 1 - days), to: today };
 }
 
 function parseArgs(args = process.argv.slice(2), env = process.env) {
   const values = {};
-  const flags = new Set(['--headless', '--no-screenshots', '--screenshots', '--refresh', '--plan-only', '--rss-only']);
-  const names = new Set(['date-from', 'date-to', 'brand', 'publishers', 'output', 'state', 'web-pages']);
+  const flags = new Set(['--headless', '--no-screenshots', '--screenshots', '--refresh', '--plan-only', '--rss-only', '--daily']);
+  const names = new Set(['date-from', 'date-to', 'brand', 'publishers', 'output', 'state', 'web-pages', 'days', 'dedupe-with']);
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
     if (flags.has(arg)) continue;
@@ -50,9 +50,13 @@ function parseArgs(args = process.argv.slice(2), env = process.env) {
     if (!value || value.startsWith('--')) throw new Error(`Missing value for --${match[1]}`);
     values[match[1]] = value;
   }
-  const from = values['date-from'] || env.DATE_FROM || '';
-  const to = values['date-to'] || env.DATE_TO || '';
-  let dateRange = getDefaultDateRange();
+  const daily = args.includes('--daily');
+  const days = Number(values.days || env.DAILY_DAYS || 3);
+  if (!Number.isInteger(days) || days < 1 || days > 30) throw new Error('--days must be 1..30');
+  if (daily && (values['date-from'] || values['date-to'])) throw new Error('--daily uses --days instead of --date-from/--date-to');
+  const from = daily ? '' : values['date-from'] || env.DATE_FROM || '';
+  const to = daily ? '' : values['date-to'] || env.DATE_TO || '';
+  let dateRange = daily ? getDefaultDateRange(days) : getDefaultDateRange();
   if (from || to) {
     for (const date of [from, to]) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) ||
@@ -74,15 +78,26 @@ function parseArgs(args = process.argv.slice(2), env = process.env) {
   }
   const webMaxPages = Number(values['web-pages'] || env.WEB_MAX_PAGES || 5);
   if (!Number.isInteger(webMaxPages) || webMaxPages < 1 || webMaxPages > 100) throw new Error('--web-pages must be 1..100');
+  if (!Number.isInteger(Number(env.ARTICLE_MAX_ATTEMPTS || 3)) || Number(env.ARTICLE_MAX_ATTEMPTS || 3) < 1) {
+    throw new Error('ARTICLE_MAX_ATTEMPTS must be a positive integer');
+  }
   const root = path.resolve(PROJECT_ROOT, env.OUTPUT_DIR || 'output');
-  const stem = `${brands.length === 1 ? slugify(brands[0].brand) : 'all_brands'}_${dateRange.from.replace(/-/g, '')}_${dateRange.to.replace(/-/g, '')}`;
+  const brandSlug = brands.length === 1 ? slugify(brands[0].brand) : 'all_brands';
+  // Daily output is one cumulative file; historical output is per date range.
+  const stem = daily ? `daily_${brandSlug}`
+    : `${brandSlug}_${dateRange.from.replace(/-/g, '')}_${dateRange.to.replace(/-/g, '')}`;
   const outputPath = path.resolve(PROJECT_ROOT, values.output || path.join(root, `${stem}.csv`));
   const statePath = path.resolve(PROJECT_ROOT, values.state || `${outputPath}.state.jsonl`);
   if (outputPath === statePath) throw new Error('--output and --state must be different paths');
+  const seedStatePaths = (values['dedupe-with'] || env.DEDUPE_WITH || '').split(',').map(file => file.trim()).filter(Boolean)
+    .map(file => path.resolve(PROJECT_ROOT, file.endsWith('.csv') ? `${file}.state.jsonl` : file));
+  if (seedStatePaths.includes(statePath)) throw new Error('--dedupe-with must name a different checkpoint');
   return {
     headless: true, dateRange, brands, publishers,
     screenshots: !args.includes('--no-screenshots') && (args.includes('--screenshots') || env.SCREENSHOTS === 'true'),
-    refresh: args.includes('--refresh'), planOnly: args.includes('--plan-only'), web: !args.includes('--rss-only'),
+    refresh: args.includes('--refresh'), planOnly: args.includes('--plan-only'),
+    web: !daily && !args.includes('--rss-only'), daily, seedStatePaths,
+    maxAttempts: Number(env.ARTICLE_MAX_ATTEMPTS || 3),
     webMaxPages, outputPath, statePath, reportPath: `${outputPath}.coverage.json`,
     screenshotDir: path.join(root, 'screenshots'),
   };
@@ -138,14 +153,19 @@ async function main() {
       ...options, plan, allBrands: BRANDS, concurrency,
       searchDelayMin: Number(process.env.SEARCH_DELAY_MIN || 3000),
       searchDelayMax: Number(process.env.SEARCH_DELAY_MAX || 6000),
+      rssDelayMin: Number(process.env.RSS_DELAY_MIN || 1000),
+      rssDelayMax: Number(process.env.RSS_DELAY_MAX || 2000),
       withinRange: isPublishDateWithinRange, shouldStop: () => stopped,
     }, {
       launchBrowser, closeBrowser, fetchArticle, classifyArticle,
       searchRss: searchGoogleNewsRss, searchWeb: searchGoogleWeb, getSearchStats,
-      classifierConfig: { version: 3, mode: config.mode, reviewFallback: config.reviewFallback, model: config.geminiModel },
+      classifierConfig: { version: 4, mode: config.mode, reviewFallback: config.reviewFallback, model: config.geminiModel },
     });
     log.summary(result.accepted_articles, result.unresolved_queries.length + result.unresolved_articles.length, options.outputPath);
     log.health(`Coverage: ${result.coverage_checks_complete ? 'planned checks finished' : 'INCOMPLETE'}; ${result.unresolved_queries.length} unfinished/limited queries; ${result.unresolved_articles.length} unverified articles; ${result.saturated_day_queries.length} saturated RSS day queries.`);
+    if (options.daily) {
+      log.info(`Daily update: ${result.accepted_this_run} new articles; ${result.abandoned_articles.length} articles given up after ${options.maxAttempts} attempts.`);
+    }
     log.info(`Coverage report: ${options.reportPath}`);
     if (!result.coverage_checks_complete) process.exitCode = 2;
     if (stopped) process.exitCode = 130;

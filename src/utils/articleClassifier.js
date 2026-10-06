@@ -183,18 +183,33 @@ function findMatchingBrands(article, brandDefs) {
     .filter(({ matchedFields }) => matchedFields.length > 0);
 }
 
+// Lookalikes that only collide with a brand once diacritics/case are removed:
+// "bảo Việt Nam" (said Vietnam), "báo Việt" (Vietnamese press) and
+// drivetrain labels such as "Cầu trước (FWD)" or "FWD/AWD".
+const RAW_LOOKALIKES = [
+  /(?:cầu trước|dẫn động(?: cầu trước)?)\s*\(?\s*FWD\s*\)?/giu,
+  /\b(?:FWD|AWD|RWD|4WD)(?:\s*\/\s*(?:FWD|AWD|RWD|4WD))+\b/gu,
+];
+const RAW_BRAND_GUARDS = {
+  'Bao Viet Nhan Tho': /(?:Bảo Việt|BẢO VIỆT|Bao Viet|BAO VIET|Baoviet|BaoViet|BAOVIET)(?![ \t]+(?:Nam|NAM)\b)/u,
+  'FWD Viet Nam': /\bFWD\b/u,
+};
+
 // Brands genuinely named in the article's title/body. Foreign parents, Bao Viet
-// non-life units and other Prudential entities don't count as a mention.
+// non-life units, other Prudential entities and lookalikes don't count.
 function findMentionedBrands(article, brandDefs) {
-  const raw = `${article.title || ''} ${article.content || ''}`;
+  let raw = `${article.title || ''} ${article.content || ''}`.normalize('NFC');
+  for (const pattern of RAW_LOOKALIKES) raw = raw.replace(pattern, ' ');
   let text = ` ${normalizeText(raw)} `;
   for (const phrase of [...NON_VIETNAM_BRAND_PHRASES, ...BAO_VIET_NON_LIFE_PHRASES, ...PRUDENTIAL_FINANCE_PHRASES]) {
     text = text.split(` ${phrase} `).join(' ');
   }
   return brandDefs
-    .filter(brandDef => brandDef.brand === 'Prudential Viet Nam'
-      ? hasPrudentialVietnamMention(raw)
-      : containsAlias(text, buildAliasList(brandDef)))
+    .filter(brandDef => {
+      if (brandDef.brand === 'Prudential Viet Nam') return hasPrudentialVietnamMention(raw);
+      const guard = RAW_BRAND_GUARDS[brandDef.brand];
+      return containsAlias(text, buildAliasList(brandDef)) && (!guard || guard.test(raw));
+    })
     .map(brandDef => brandDef.brand);
 }
 

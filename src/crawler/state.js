@@ -84,4 +84,18 @@ function openState(file, config) {
   }
 }
 
-module.exports = { openState, atomicJson };
+// Identities of accepted articles in another checkpoint, read without locking
+// it, so a separate (e.g. daily) crawl can avoid re-adding those articles.
+function readAcceptedIdentities(file) {
+  if (!fs.existsSync(file)) throw new Error(`Dedupe checkpoint not found: ${file}`);
+  return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).flatMap(line => {
+    try {
+      const event = JSON.parse(line);
+      return event.type === 'candidate' && event.value?.identity ? [event.value.identity] : [];
+    } catch (_) {
+      return []; // A concurrently written final line may be incomplete.
+    }
+  });
+}
+
+module.exports = { openState, atomicJson, readAcceptedIdentities };
