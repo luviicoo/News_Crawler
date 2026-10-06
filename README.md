@@ -25,32 +25,58 @@ Chạy các lệnh npm từ thư mục gốc chứa `package.json`. Có thể đ
 ## Chạy crawler
 
 ```powershell
-# Mở cửa sổ trình duyệt
+# Chạy ẩn; chỉ mở cửa sổ khi cần xác thực CAPTCHA
 npm.cmd start
 
-# Chạy ẩn trình duyệt
+# Lệnh tương đương (giữ tương thích)
 npm.cmd run start:headless
 
 # Khoảng ngày gồm cả ngày đầu và ngày cuối
 npm.cmd run start:headless -- --date-from 2026-09-01 --date-to 2026-09-13
+
+# Chỉ lấy dữ liệu CSV, không chụp ảnh
+npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 --no-screenshots
 ```
 
-Mặc định lấy 7 ngày tính cả hôm nay theo giờ Việt Nam (UTC+7). Có thể đặt `DATE_FROM` và `DATE_TO` trong `.env`; tham số dòng lệnh được ưu tiên. Cung cấp cả hai ngày theo định dạng `YYYY-MM-DD`. Nếu thiếu một đầu khoảng, chương trình dùng khoảng mặc định; nếu ngày đầu lớn hơn ngày cuối, chương trình tự đổi thứ tự.
+Mặc định lấy 7 ngày tính cả hôm nay theo giờ Việt Nam (UTC+7). Có thể đặt `DATE_FROM` và `DATE_TO` trong `.env`; tham số dòng lệnh được ưu tiên. Cung cấp cả hai ngày theo định dạng `YYYY-MM-DD`. Nếu nhập thiếu hoặc sai ngày, chương trình báo lỗi; nếu ngày đầu lớn hơn ngày cuối, chương trình tự đổi thứ tự.
 
 Các thương hiệu: Sun Life, Chubb Life, FWD, Dai-ichi Life, AIA, Bảo Việt Nhân Thọ, Prudential, Manulife và Generali. Sửa tên, bí danh và truy vấn tại `src/config/brands.js`.
 
 ## Luồng xử lý
 
-1. Tìm qua Google News RSS; nếu RSS lỗi hoặc không có kết quả, chuyển sang tìm bằng trình duyệt.
-2. Phân loại thẻ kết quả để loại tin không liên quan, xác định thương hiệu và sắc thái.
-3. Chuẩn hóa URL và loại trùng theo từng thương hiệu trong lần chạy. Bài nhắc nhiều thương hiệu có thể xuất hiện cho nhiều thương hiệu. Key so trùng bỏ qua ngôn ngữ (`/vn/` ↔ `/en/`), AMP, bản mobile, tham số tracking; luật nằm ở `src/config/urlIdentity.js`.
-4. Tải chi tiết bài với số tác vụ đồng thời giới hạn; lấy tiêu đề, URL cuối và ngày đăng từ metadata, JSON-LD, URL hoặc văn bản trang.
-5. Loại bài không xác định được ngày hoặc nằm ngoài khoảng ngày; bỏ nguồn trong danh sách chặn của `src/index.js`.
-6. Loại trùng lần hai sau khi mở bài (`src/parser/articleIdentity.js`): so URL cuối, link hreflang (bản ngôn ngữ khác, kể cả khác slug) và canonical/og:url (chỉ gộp khi cùng tiêu đề). Bài trùng ghi log `[SKIP_SAME_ARTICLE]`, không chụp ảnh.
-7. Chụp phần đầu trang của bài hợp lệ và ghi từng dòng CSV kèm `article_id`.
-8. Cuối run in các dòng `[HEALTH]`: số bài đã gộp, brand 0 bài, query bị CAPTCHA, nghi selector Google hỏng.
+Trình duyệt tìm kiếm dự phòng, tải bài và chụp ảnh đều chạy ẩn. Khi phát hiện CAPTCHA, tool mở một cửa sổ xác thực riêng, chuyển cookie/localStorage về phiên ẩn sau khi giải xong và đóng cửa sổ; các yêu cầu xác thực đồng thời được xử lý lần lượt.
 
-Phân loại diễn ra trước khi tải chi tiết bài và chủ yếu dựa trên dữ liệu tìm kiếm trong luồng crawler hiện tại. Lỗi chụp ảnh được ghi log và không nhất thiết làm mất dòng CSV.
+RSS ở đây là **RSS tìm kiếm của Google News**, không phải RSS riêng của từng báo. Mỗi truy vấn tạo một URL `https://news.google.com/rss/search?q=...&hl=vi&gl=VN&ceid=VN:vi`. Ví dụ tháng 01/2018: `"Prudential" after:2017-12-31 before:2018-02-01`; thêm `site:vnexpress.net` để tìm trong một báo. Khoảng ngày cuối cùng vẫn được kiểm tra theo ngày đăng thật của bài ở UTC+7.
+
+1. Lập toàn bộ kế hoạch trước khi tìm: từng từ khóa cho cả khoảng ngày và từng tháng; thêm từ khóa thương hiệu + `site:` cho từng báo, từng năm. Mặc định có 16 báo trong `src/crawler/plan.js`, thay được bằng `--publishers` hoặc `PUBLISHER_DOMAINS`.
+2. Chạy các truy vấn RSS. Tìm theo tháng/báo luôn được thực hiện, kể cả RSS trả ít hơn 100 kết quả. Feed từ 100 bài được chia đôi tiếp xuống một ngày, giữ cả kết quả của cửa sổ cha và con. Ngày vẫn chạm giới hạn được ghi trong báo cáo độ phủ.
+3. Chạy **Google Web** bổ sung theo tháng và báo/năm dù RSS đã có bài. Trình duyệt chạy ẩn; chỉ CAPTCHA mới mở cửa sổ xác thực. Web phân trang tối đa `WEB_MAX_PAGES`; chạm giới hạn, bị chặn hoặc không đọc được giao diện được ghi là chưa hoàn tất.
+4. Lưu các URL tìm được vào tiến độ trước khi đánh dấu truy vấn xong. Mở bài, giải chuyển hướng, đọc tiêu đề, thân bài, ngày đăng và liên kết định danh. Không loại bài chỉ vì tiêu đề chưa nhắc thương hiệu.
+5. Phân loại bằng tiêu đề **và thân bài**. Ưu tiên vùng nội dung của báo, bỏ sidebar/tin liên quan. Bài nhắc từ 2 hãng trở lên (trong tiêu đề/thân bài) được ghi **một lần** với `brand = Ngành bảo hiểm`, danh sách hãng nằm ở cột `mentioned_brands`; không lặp lại cho từng hãng. Prudential Financial/plc, Manulife Financial, Bảo hiểm Bảo Việt... không được tính là nhắc hãng. Loại Prudential Finance, Prudential Financial và tên tòa nhà nhầm với Prudential Việt Nam. Phạm vi là các bài nhắc hãng, gồm tin ngành/CSR/khiếu nại, không chỉ thông cáo tích cực.
+6. Loại trùng theo từng hãng (bài ngành dùng chung một phạm vi, nên tìm lại qua hãng khác vẫn tính là trùng) bằng URL chuẩn hóa, AMP/mobile/ngôn ngữ, hreflang và canonical cùng tiêu đề. Lưu cả liên kết định danh để khôi phục bộ chống trùng khi chạy tiếp. Một bài đăng ở hai báo vẫn tính là hai lần xuất hiện.
+7. Lưu bài hợp lệ vào nhật ký tiến độ trước khi ghi CSV. Mặc định không chụp ảnh; muốn chụp dùng `--screenshots` hoặc `SCREENSHOTS=true`.
+8. Cập nhật báo cáo `.coverage.json`: toàn bộ truy vấn, trạng thái, số bài mỗi năm, ngày RSS chạm giới hạn và các URL chưa đọc/xác minh ngày được. Không đổi CAPTCHA/lỗi tải thành “0 bài, đã xong”.
+
+Với Prudential từ 2018 đến 30/09/2026, kế hoạch mặc định gồm **568 truy vấn RSS và 249 truy vấn Web**; RSS có thể phát sinh thêm truy vấn con khi chạm giới hạn. RSS và Web đều phụ thuộc bài được Google lập chỉ mục, nên hoàn tất kế hoạch không chứng minh đã có mọi bài từng được xuất bản.
+
+## Chạy tiếp và kiểm tra độ phủ
+
+Chạy lại **cùng lệnh** tự đọc checkpoint, khôi phục CSV và chỉ làm truy vấn/bài còn lỗi hoặc chưa xong. Các truy vấn đã hoàn tất không được tìm lại; bài đã nhận không bị thêm lần nữa. `Ctrl+C` dừng việc mở tác vụ mới, chờ tác vụ đang chạy và giữ tiến độ. Khóa tiến trình ngăn hai lượt chạy cùng ghi một checkpoint.
+
+```powershell
+# Xem kế hoạch, không truy cập mạng hoặc tạo file
+npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 --plan-only
+
+# Chủ động tìm lại các truy vấn, vẫn giữ bài và chống trùng từ checkpoint
+npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 --refresh
+
+# Tăng số trang cho các truy vấn Web còn chạm giới hạn, tiếp tục checkpoint cũ
+npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 --web-pages 10
+```
+
+`--output <file.csv>` chọn CSV và mặc định checkpoint `<file.csv>.state.jsonl`; `--state <file.jsonl>` chọn checkpoint riêng. Đổi hãng/khoảng ngày/danh sách báo/chế độ phân loại phải dùng bộ file khác để không nhầm tiến độ giữa các kế hoạch. Muốn kéo mới từ đầu, chọn tên `--output` mới. `--rss-only` bỏ bước Web và báo độ phủ chưa đầy đủ, cần bộ file khác nếu đã có checkpoint của kế hoạch đầy đủ.
+
+`coverage_checks_complete=true` nghĩa là kế hoạch có bước Web, mọi truy vấn/bài đã xử lý và không còn giới hạn được phát hiện. `processing_complete` chỉ nói việc xử lý kế hoạch đã xong. Mã thoát `2` báo còn thiếu bước độ phủ hoặc còn ca chưa xác minh; `130` là đã dừng theo yêu cầu. URL chưa lấy được ngày vẫn nằm trong báo cáo để kiểm tra, không tự gán ngày.
 
 ## Cấu hình
 
@@ -58,13 +84,18 @@ Phân loại diễn ra trước khi tải chi tiết bài và chủ yếu dựa 
 
 | Biến | Mặc định trong mã | Ý nghĩa |
 | --- | --- | --- |
-| `HEADLESS` | `false` | Đặt `true` để ẩn trình duyệt; `--headless` cũng bật chế độ này |
+| `HEADLESS` | `true` | Crawler luôn chạy ẩn, kể cả cấu hình cũ đặt `false`; `--headless` vẫn được chấp nhận |
 | `DATE_FROM`, `DATE_TO` | 7 ngày gần nhất | Khoảng ngày theo giờ Việt Nam |
+| `BRAND` | Tất cả 9 hãng | Chọn một hãng, ví dụ `Prudential`; CLI `--brand` ưu tiên |
+| `SCREENSHOTS` | `false` | Chỉ chụp khi bật rõ ràng |
+| `PUBLISHER_DOMAINS` | 16 báo | Danh sách domain phân cách bằng dấu phẩy |
+| `WEB_MAX_PAGES` | `5` | Số trang tối đa cho mỗi truy vấn Web, CLI `--web-pages` ưu tiên |
+| `RSS_TIMEOUT_MS` | `30000` | Thời gian chờ một yêu cầu RSS |
 | `ARTICLE_CONCURRENCY` | `3` | Số bài tải đồng thời trong mỗi truy vấn |
 | `PAGE_TIMEOUT` | `30000` | Thời gian chờ điều hướng, mili giây |
 | `SEARCH_DELAY_MIN`, `SEARCH_DELAY_MAX` | `3000`, `6000` | Khoảng nghỉ trước mỗi truy vấn, mili giây |
 | `ARTICLE_DELAY_MIN`, `ARTICLE_DELAY_MAX` | `500`, `1500` | Khoảng nghỉ tải bài, mili giây |
-| `CAPTCHA_PAUSE_MS` | `30000` | Thời gian tối đa chờ người giải CAPTCHA (chế độ có cửa sổ); chạy tiếp ngay khi giải xong |
+| `CAPTCHA_PAUSE_MS` | `120000` | Thời gian chờ xác thực trong cửa sổ riêng; đặt `0` để bỏ qua xác thực thủ công |
 | `CAPTCHA_MAX_PER_RUN` | `2` | Số CAPTCHA không giải được trước khi tắt tìm bằng trình duyệt cho phần còn lại của run (RSS vẫn chạy) |
 | `OUTPUT_DIR` | `output` | Thư mục đầu ra, tương đối từ gốc scraper |
 | `CLASSIFIER_MODE` | `rules` | `rules`, `hybrid` hoặc `gemini` |
@@ -78,11 +109,12 @@ File `.env.example` chọn `hybrid` và `gemini-2.5-pro`, khác mặc định tr
 
 ## Đầu ra
 
-CSV lưu tại `output/articles_YYYYMMDD_HHmmss.csv` (hoặc `OUTPUT_DIR`), mã hóa UTF-8 có BOM. Tên file dùng thời gian của máy chạy.
+CSV dùng UTF-8 có BOM. Tên mặc định theo hãng/khoảng ngày, ví dụ `output/prudential_viet_nam_20180101_20260930.csv`, kèm `.state.jsonl` và `.coverage.json`. Bộ CSV Prudential đã rà trước đây (`prudential_pr_20180101_20260930_reviewed.csv`) được giữ riêng; không tự nhập nó vào checkpoint mới.
 
 | Cột | Nội dung |
 | --- | --- |
-| `brand` | Thương hiệu được phân loại |
+| `brand` | Thương hiệu được phân loại, hoặc `Ngành bảo hiểm` nếu bài nhắc từ 2 hãng |
+| `mentioned_brands` | Các hãng được nhắc trong bài, phân cách bằng `; ` |
 | `article_title` | Tiêu đề bài báo |
 | `article_url` | URL sau khi xử lý chuyển hướng |
 | `publisher_domain` | Domain nguồn báo |
@@ -92,7 +124,7 @@ CSV lưu tại `output/articles_YYYYMMDD_HHmmss.csv` (hoặc `OUTPUT_DIR`), mã 
 | `classification_source` | Nguồn phân loại, ví dụ `rules` |
 | `article_id` | ID ổn định của bài (`art_` + 12 ký tự hex), tính từ URL đã chuẩn hóa; cùng bài ở `/vn/` và `/en/` có cùng ID qua các lần chạy |
 
-Ảnh PNG lưu trong `output/screenshots/`, chụp khung nhìn 800 × 800 pixel ở đầu trang. Tên ảnh kết hợp thương hiệu, domain, ngày và mã băm URL. CSV ghi tăng dần để giữ phần kết quả đã ghi khi tiến trình bị ngắt.
+Ảnh PNG lưu trong `output/screenshots/`, chụp khung nhìn 800 × 800 pixel ở đầu trang. Tên ảnh kết hợp thương hiệu, domain, ngày và mã băm URL. CSV ghi tăng dần; nhật ký tiến độ là nguồn khôi phục CSV khi bị ngắt. Giữ `.state.jsonl` nếu muốn chạy tiếp.
 
 ## Chụp ảnh từ danh sách bài có sẵn
 
@@ -113,7 +145,7 @@ CSV lưu tại `output/articles_YYYYMMDD_HHmmss.csv` (hoặc `OUTPUT_DIR`), mã 
 npm.cmd run capture:pr-images -- .\articles.json
 ```
 
-Script chạy headless. Đường dẫn JSON và `screenshotDir` tương đối tính từ thư mục làm việc khi chạy lệnh. Nên dùng đường dẫn tuyệt đối khi gọi từ ứng dụng khác.
+Script chạy ẩn, chỉ mở cửa sổ khi gặp CAPTCHA cần xác thực. Đường dẫn JSON và `screenshotDir` tương đối tính từ thư mục làm việc khi chạy lệnh. Nên dùng đường dẫn tuyệt đối khi gọi từ ứng dụng khác.
 
 ## Cấu trúc thư mục
 
@@ -125,7 +157,10 @@ src/
   config/urlIdentity.js       Luật nhận dạng cùng bài (ngôn ngữ, AMP, hậu tố ID)
   config/googleSelectors.json Selector Google Search, mẫu CAPTCHA
   crawler/browser.js          Chromium và phiên Google
-  crawler/google.js           Tìm kiếm RSS và trình duyệt
+  crawler/google.js           Tìm kiếm RSS và Google Web
+  crawler/plan.js             Kế hoạch theo tháng và báo/năm
+  crawler/run.js              Đọc thân bài, phân loại, điều phối và báo độ phủ
+  crawler/state.js            Nhật ký tiến độ và khóa tiến trình
   crawler/article.js          Tải bài, lấy tiêu đề/ngày đăng
   parser/dateParser.js        Phân tích và định dạng ngày
   parser/urlParser.js         Chuyển hướng, chuẩn hóa, key bài, loại trùng
@@ -142,10 +177,10 @@ test/core.test.js             Kiểm thử chức năng hiện tại
 npm.cmd test
 ```
 
-Test kiểm tra ngày, URL, loại trùng, tiếng Việt, phân loại bằng quy tắc và CSV. Test không tìm kiếm Google hoặc gọi Gemini, không xác nhận tích hợp mạng.
+Test kiểm tra kế hoạch, phân loại thân bài/nhiều hãng, retry/resume, khóa tiến trình, khôi phục CSV, feed chạm giới hạn và CAPTCHA. Kiểm thử DOM dùng Chromium thật với HTML mẫu; test tự động không tìm Google hoặc gọi Gemini.
 
 - Thiếu Chromium: chạy `npx.cmd playwright install chromium`.
-- CAPTCHA: chạy có cửa sổ trình duyệt để xử lý và tăng khoảng nghỉ. Query bị bỏ vì CAPTCHA được liệt kê ở dòng `[HEALTH]` cuối run.
+- CAPTCHA: tool tự mở một cửa sổ để bạn xác thực rồi đóng khi thành công và tiếp tục chạy ẩn. Nếu đóng cửa sổ hoặc hết `CAPTCHA_PAUSE_MS`, tool bỏ qua query/bài đó. Query bị bỏ được liệt kê ở dòng `[HEALTH]` cuối run. Một số trang ràng buộc xác thực với trình duyệt; nếu phiên không chuyển được về crawler, tool sẽ bỏ qua khi hết thời gian chờ.
 - Kết quả ít hoặc rỗng: kiểm tra khoảng ngày, log phân loại, nguồn bị chặn. Nếu log có `[SELECTOR]`, sửa `src/config/googleSelectors.json` dựa trên HTML lưu ở `logs/selector-debug/`.
 - Hai URL của cùng bài vẫn bị tính 2 lần: thêm luật vào `src/config/urlIdentity.js`.
 

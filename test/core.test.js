@@ -7,7 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const { BRANDS } = require('../src/config/brands');
-const { formatDateVN, parseToISO } = require('../src/parser/dateParser');
+const { extractPublishDate, formatDateVN, parseToISO } = require('../src/parser/dateParser');
 const {
   buildHomepage,
   extractHostname,
@@ -25,6 +25,35 @@ test('date helpers parse and format Vietnam dates', () => {
   assert.equal(parseToISO('15/03/2024'), '2024-03-15T00:00:00.000Z');
   assert.equal(formatDateVN('2019-02-28T23:30:01.000Z'), '06:30:01 01/03/2019');
   assert.equal(isoToDateSlug('2026-09-01T18:00:00.000Z'), '20260902');
+});
+
+test('historical RSS publication date takes priority over a header clock', async () => {
+  const page = {
+    $eval: async () => { throw new Error('no metadata'); },
+    $$eval: async () => [],
+    evaluate: async () => { throw new Error('body clock must not be used before RSS'); },
+  };
+  assert.equal(await extractPublishDate(page, 'https://example.vn/article', {
+    rssPublishDate: 'Thu, 8 Feb 2018 04:00:00 GMT',
+  }), '2018-02-08T04:00:00.000Z');
+});
+
+test('article metadata is retained; a live time element cannot replace historical RSS date', async () => {
+  const page = {
+    $eval: async selector => {
+      if (selector.includes('time[')) throw new Error('no time');
+      if (selector.includes('article:published_time')) return '2019-05-20T09:00:00+07:00';
+      throw new Error('no metadata');
+    },
+  };
+  assert.equal(await extractPublishDate(page, 'https://example.vn/article', {
+    rssPublishDate: 'Sun, 19 May 2019 02:00:00 GMT',
+  }), '2019-05-20T02:00:00.000Z');
+  page.$eval = async () => new Date().toISOString();
+  assert.equal(await extractPublishDate(page, 'https://example.vn/article', {
+    rssPublishDate: 'Thu, 8 Feb 2018 04:00:00 GMT',
+  }), '2018-02-08T04:00:00.000Z');
+  assert.equal(resolveGoogleRedirect('chrome-error://chromewebdata/'), 'chrome-error://chromewebdata/');
 });
 
 test('URL helpers unwrap, normalize and derive publisher values', () => {
@@ -58,6 +87,31 @@ test('text normalization preserves Vietnamese d-stroke as d', () => {
   assert.equal(normalizeText('Đồng hành, dẫn đầu'), 'dong hanh dan dau');
 });
 
+test('Prudential building names and foreign finance firms cannot establish insurer relevance', async () => {
+  const brand = BRANDS.find(item => item.brand === 'Prudential Viet Nam');
+  const env = { CLASSIFIER_MODE: 'rules', CLASSIFIER_REVIEW_FALLBACK: 'accept' };
+  for (const content of [
+    'Agoda có trụ sở ở Prudential Tower, Singapore. Công ty hỗ trợ bảo hiểm du lịch.',
+    'Prudential Financial khảo sát người lao động Mỹ trong ngành bảo hiểm.',
+    'Công ty tài chính Prudential Việt Nam cung cấp khoản vay tiêu dùng.',
+    'Macro Prudential Assessment của ngân hàng Trung Quốc trong thị trường bảo hiểm.',
+    'Prudential Financial khảo sát người lao động Mỹ. Prudential công bố kết quả về bảo hiểm.',
+    'Prudential Holborn Life bán Công ty tài chính Prudential Việt Nam cho Shinhan.',
+  ]) {
+    const result = await classifyArticle({ title: 'Thông tin thị trường và doanh nghiệp', content }, brand, BRANDS, env);
+    assert.equal(result.decision, 'reject');
+  }
+  const relevant = await classifyArticle({ title: 'Thị trường bảo hiểm nhân thọ',
+    content: 'Prudential Financial ở Mỹ và Prudential Việt Nam là những doanh nghiệp khác nhau.' }, brand, BRANDS, env);
+  assert.equal(relevant.decision, 'accept');
+  const localParent = await classifyArticle({ title: 'Thị trường bảo hiểm Việt Nam',
+    content: 'Tổng giám đốc Tập đoàn Prudential plc cam kết đầu tư dài hạn vào bảo hiểm tại Việt Nam.' }, brand, BRANDS, env);
+  assert.equal(localParent.decision, 'accept');
+  const advisor = await classifyArticle({ title: 'Chuẩn bị tài chính tuổi già',
+    content: 'Chuyên viên tư vấn tài chính đến từ Prudential hướng dẫn khách hàng hoạch định cuộc sống.' }, brand, BRANDS, env);
+  assert.equal(advisor.decision, 'accept');
+});
+
 test('rules classifier accepts a target brand and rejects obvious noise', async () => {
   const target = BRANDS.find(({ brand }) => brand === 'Prudential Viet Nam');
   const env = { CLASSIFIER_MODE: 'rules' };
@@ -79,6 +133,20 @@ test('rules classifier accepts a target brand and rejects obvious noise', async 
   assert.equal(rejected.decision, 'reject');
 });
 
+test('article body identifies Prudential without treating incidental topics as headline noise', async () => {
+  const target = BRANDS.find(({ brand }) => brand === 'Prudential Viet Nam');
+  const result = await classifyArticle({
+    title: 'Chuyển đổi số giúp khách hàng bảo hiểm thuận tiện hơn',
+    content: 'Prudential Việt Nam cải tiến bảo hiểm nhân thọ. Khách hàng so sánh quyền lợi với bảo hiểm y tế.',
+    url: 'https://example.vn/digital-insurance',
+  }, target, BRANDS, { CLASSIFIER_MODE: 'rules' });
+  assert.equal(result.decision, 'accept');
+  assert.equal(result.brand, target.brand);
+  const campaign = await classifyArticle({ title: 'An Concert by Prudential: Hòa nhạc đa giác quan',
+    url: 'https://example.vn/an-concert' }, target, BRANDS, { CLASSIFIER_MODE: 'rules' });
+  assert.equal(campaign.decision, 'accept');
+});
+
 test('classifier handles sponsorship, foreign companies, Bao Viet ambiguity, and multi-brand titles', async () => {
   const rules = { CLASSIFIER_MODE: 'rules' };
   const fwd = BRANDS.find(({ brand }) => brand === 'FWD Viet Nam');
@@ -94,7 +162,8 @@ test('classifier handles sponsorship, foreign companies, Bao Viet ambiguity, and
   );
   assert.equal(sponsorship.decision, 'reject');
 
-  for (const title of ['Prudential Financial báo lãi quý 3', 'Prudential plc công bố kết quả']) {
+  for (const title of ['Prudential Financial báo lãi quý 3', 'Prudential plc công bố kết quả',
+    'Prudential Finance là công ty tài chính tốt nhất', 'Mua lại Prudential Finance, Shinhan ra mắt công ty tài chính']) {
     const foreign = await classifyArticle({ title, url: 'https://example.com/foreign' }, prudential, BRANDS, rules);
     assert.equal(foreign.decision, 'reject');
   }
@@ -245,4 +314,23 @@ test('Google selector config has the keys the crawler reads', () => {
     assert.ok(Array.isArray(selectors[key]) && selectors[key].length > 0, key);
   }
   assert.equal(typeof selectors.searchBox, 'string');
+});
+
+test('saturated RSS feeds split long windows, preserve parent results and carry publication dates', async () => {
+  const { searchGoogleNewsRss } = require('../src/crawler/google');
+  const calls = [];
+  const stub = test.mock.method(globalThis, 'fetch', async url => {
+    calls.push(new URL(url).searchParams.get('q'));
+    const count = calls.length === 1 ? 100 : 1;
+    const prefix = calls.length === 1 ? 'parent' : `child${calls.length}`;
+    const items = Array.from({ length: count }, (_, i) => `<item><title>Prudential ${prefix} ${i}</title><link>https://example.vn/${prefix}/${i}</link><pubDate>Thu, 8 Feb 2018 04:00:00 GMT</pubDate><source url="https://example.vn">Example</source></item>`).join('');
+    return { ok: true, text: async () => `<rss><channel>${items}</channel></rss>` };
+  });
+  try {
+    const cards = await searchGoogleNewsRss('Prudential', { from: '2018-01-01', to: '2018-12-31' });
+    assert.equal(calls.length, 3);
+    assert.equal(cards.length, 102);
+    assert.match(calls[0], /after:2017-12-31 before:2019-01-01/);
+    assert.equal(cards[0].rssPublishDate, 'Thu, 8 Feb 2018 04:00:00 GMT');
+  } finally { stub.mock.restore(); }
 });

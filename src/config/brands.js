@@ -55,7 +55,7 @@ const BRANDS = [
   {
     brand: 'Prudential Viet Nam',
     aliases: ['Prudential Viet Nam', 'Prudential Vietnam', 'Prudential VN', 'Prudential'],
-    queries: ['prudential viet nam bao hiem', 'prudential vn tin tuc'],
+    queries: ['"Prudential"', '"Prudential Việt Nam"', 'prudential viet nam bao hiem', 'prudential vn tin tuc'],
   },
   {
     brand: 'Manulife Viet Nam',
@@ -69,4 +69,8 @@ const BRANDS = [
   },
 ];
 
-module.exports = { BRANDS };
+// Articles naming two or more tracked insurers are reported once under this
+// label instead of once per brand.
+const INDUSTRY_LABEL = 'Ngành bảo hiểm';
+
+module.exports = { BRANDS, INDUSTRY_LABEL };

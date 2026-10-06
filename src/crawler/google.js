@@ -17,7 +17,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getGooglePage, saveGoogleSession, isHeadlessMode } = require('./browser');
+const { getGooglePage, saveGoogleSession, verifyInPopup } = require('./browser');
+const { isCaptchaPage } = require('./captcha');
 const { resolveGoogleRedirect, extractHostname } = require('../parser/urlParser');
 const { slugify } = require('../output/artifacts');
 const log = require('../output/logger');
@@ -83,11 +84,12 @@ function buildRssQuery(query, dateRange) {
   }
 
   const exclusiveEnd = addDays(dateRange.to, 1);
+  const exclusiveStart = addDays(dateRange.from, -1);
   if (!exclusiveEnd) {
     return baseQuery;
   }
 
-  return `${baseQuery} after:${dateRange.from} before:${exclusiveEnd}`;
+  return `${baseQuery} after:${exclusiveStart || dateRange.from} before:${exclusiveEnd}`;
 }
 
 function decodeXmlEntities(value) {
@@ -136,12 +138,14 @@ function cleanRssTitle(title, sourceName) {
  * 4xx khác và khi Google trả trang HTML chặn thay vì XML, để không nhận nhầm
  * trang chặn thành "0 kết quả".
  */
-async function fetchRssWithRetry(rssUrl) {
+async function fetchRssWithRetry(rssUrl, shouldStop = () => false) {
   const backoffs = [5000, 15000];
   for (let attempt = 0; ; attempt++) {
+    if (shouldStop()) throw new Error('RSS search interrupted; resume from checkpoint');
     let retryable = true;
     try {
       const response = await fetch(rssUrl, {
+        signal: AbortSignal.timeout(Number(process.env.RSS_TIMEOUT_MS || 30000)),
         headers: {
           'User-Agent': 'Mozilla/5.0',
           'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -160,18 +164,20 @@ async function fetchRssWithRetry(rssUrl) {
       }
       return xml;
     } catch (err) {
-      if (!retryable || attempt >= backoffs.length) throw err;
+      if (shouldStop() || !retryable || attempt >= backoffs.length) throw err;
       log.warn(`${err.message}; retrying RSS in ${backoffs[attempt] / 1000}s`);
       await new Promise((r) => setTimeout(r, backoffs[attempt]));
     }
   }
 }
 
-async function searchGoogleNewsRss(query, dateRange) {
+async function searchGoogleNewsRss(query, dateRange, { shouldStop = () => false } = {}) {
+  if (shouldStop()) throw new Error('RSS search interrupted; resume from checkpoint');
   const rssQuery = buildRssQuery(query, dateRange);
   if (!rssQuery) {
     return [];
   }
+  searchStats.rssQueries++;
 
   const rssUrl =
     `https://news.google.com/rss/search?q=${encodeURIComponent(rssQuery)}` +
@@ -179,7 +185,7 @@ async function searchGoogleNewsRss(query, dateRange) {
 
   log.info(`Fetching Google News RSS (${describeNewsDateFilter(dateRange)}): ${rssUrl}`);
 
-  const xml = await fetchRssWithRetry(rssUrl);
+  const xml = await fetchRssWithRetry(rssUrl, shouldStop);
   const itemMatches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)];
   const cards = [];
   const seen = new Set();
@@ -200,15 +206,32 @@ async function searchGoogleNewsRss(query, dateRange) {
       title,
       url,
       publisherDomain,
+      rssPublishDate: extractXmlTagContent(itemXml, 'pubDate'),
     });
   }
 
+  // A saturated feed can hide older results. Bisect long date windows and
+  // retain the parent results as well, since rankings can differ by window.
+  const span = dateRange && (Date.parse(dateRange.to) - Date.parse(dateRange.from)) / 86400000;
+  if (cards.length >= 100 && span > 0) {
+    const midpoint = addDays(dateRange.from, Math.floor(span / 2));
+    log.warn(`[RSS_LIMIT] ${query}: ${cards.length} results; splitting ${dateRange.from} -> ${dateRange.to}`);
+    const left = await searchGoogleNewsRss(query, { from: dateRange.from, to: midpoint }, { shouldStop });
+    const right = await searchGoogleNewsRss(query, { from: addDays(midpoint, 1), to: dateRange.to }, { shouldStop });
+    const merged = new Map([...cards, ...left, ...right].map(card => [card.url, card]));
+    return [...merged.values()];
+  }
+  if (cards.length >= 100) {
+    searchStats.saturatedDayQueries.push({ query, dateRange, results: cards.length });
+    log.warn(`[RSS_LIMIT] ${query}: a single day still returned ${cards.length} results.`);
+  }
   return cards;
 }
 
 // ─── Run stats (đọc ở cuối run để cảnh báo) ───────────────────────────────────
 
 const searchStats = {
+  saturatedDayQueries: [],
   rssQueries: 0,
   browserQueries: 0,
   browserZeroQueries: [],     // query fallback trình duyệt trả 0 bài
@@ -227,6 +250,7 @@ function getSearchStats() {
 }
 
 function resetSearchStats() {
+  searchStats.saturatedDayQueries = [];
   searchStats.rssQueries = 0;
   searchStats.browserQueries = 0;
   searchStats.browserZeroQueries = [];
@@ -255,43 +279,25 @@ async function acceptConsent(page) {
 
 // ─── CAPTCHA detection ────────────────────────────────────────────────────────
 
-async function isCaptchaPage(page) {
-  const text = await page
-    .evaluate(() => (location.href + ' ' + document.title + ' ' + (document.body?.innerText || '')).toLowerCase())
-    .catch(() => '');
-  return SELECTORS.captchaPatterns.some((pattern) => text.includes(pattern.toLowerCase()));
-}
-
 /**
  * Trả về true nếu trang đang sạch (không CAPTCHA, hoặc CAPTCHA đã được giải).
  *
- * Headful: chờ tối đa CAPTCHA_PAUSE_MS để người giải tay, kiểm tra mỗi 2 giây
- * và chạy tiếp ngay khi giải xong. Headless: bỏ query luôn.
+ * Mở cửa sổ riêng khi cần xác thực, sau đó tiếp tục chạy ẩn.
  * Sau CAPTCHA_MAX_PER_RUN lần không giải được, tắt fallback trình duyệt cho
  * phần còn lại của run (RSS vẫn chạy) để không gửi thêm request bị chặn.
  */
 async function ensureNoCaptcha(page, query) {
   if (!(await isCaptchaPage(page))) return true;
 
-  const PAUSE = parseInt(process.env.CAPTCHA_PAUSE_MS || '30000', 10);
   const MAX_PER_RUN = parseInt(process.env.CAPTCHA_MAX_PER_RUN || '2', 10);
 
-  if (!isHeadlessMode() && PAUSE > 0) {
-    log.captcha(PAUSE);
-    const deadline = Date.now() + PAUSE;
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 2000));
-      if (!(await isCaptchaPage(page))) {
-        searchStats.captchaSolved++;
-        log.info('[CAPTCHA] Solved, continuing.');
-        await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
-        return true;
-      }
-    }
+  if (await verifyInPopup(page, isCaptchaPage)) {
+    searchStats.captchaSolved++;
+    return true;
   }
 
   searchStats.captchaBlockedQueries.push(query);
-  log.warn(`[CAPTCHA] Not solved (headless=${isHeadlessMode()}); skipping query "${query}".`);
+  log.warn(`[CAPTCHA] Not solved; skipping query "${query}".`);
 
   if (searchStats.captchaBlockedQueries.length >= MAX_PER_RUN && !browserSearchDisabled) {
     browserSearchDisabled = true;
@@ -492,7 +498,6 @@ async function searchGoogleNews(brand, query, options = {}) {
   try {
     const rssCards = await searchGoogleNewsRss(query, dateRange);
     if (rssCards.length > 0) {
-      searchStats.rssQueries++;
       log.found(rssCards.length, query);
       log.info(`Using RSS results for "${query}"`);
       return rssCards;
@@ -614,4 +619,64 @@ async function searchGoogleNews(brand, query, options = {}) {
   }
 }
 
-module.exports = { searchGoogleNews, getSearchStats, resetSearchStats };
+async function extractWebCards(page) {
+  const raw = await page.evaluate(selectors => {
+    const root = selectors.resultsRoot.map(selector => document.querySelector(selector)).find(Boolean);
+    if (!root) return [];
+    return Array.from(root.querySelectorAll(selectors.webHeadlines)).map(heading => {
+      const anchor = heading.closest('a[href]') || heading.parentElement?.querySelector('a[href]');
+      return { title: heading.textContent?.replace(/\s+/g, ' ').trim() || '', url: anchor?.href || '' };
+    });
+  }, SELECTORS);
+  const cards = new Map();
+  for (const card of raw) {
+    const url = resolveGoogleRedirect(card.url);
+    const domain = extractHostname(url);
+    if (!/^https?:\/\//i.test(url) || !card.title || /(^|\.)google\.[a-z.]+$/.test(domain)) continue;
+    cards.set(url, { ...card, url, publisherDomain: domain });
+  }
+  return [...cards.values()];
+}
+
+// Ordinary web search complements News RSS. Source/year plans run regardless
+// of how many RSS results were returned; Google News is not the whole web index.
+async function searchGoogleWeb(brand, query, { dateRange, maxPages = 5, shouldStop = () => false } = {}) {
+  if (browserSearchDisabled) throw new Error('Google web search disabled after unsolved CAPTCHA; resume later.');
+  const page = await getGooglePage();
+  const timeout = Number(process.env.PAGE_TIMEOUT || 30000);
+  const url = new URL('https://www.google.com/search');
+  url.searchParams.set('q', buildRssQuery(query, dateRange));
+  url.searchParams.set('hl', 'vi');
+  url.searchParams.set('gl', 'vn');
+  const cards = new Map();
+  let next = url.toString();
+  let pages = 0;
+  while (next && pages < maxPages) {
+    if (shouldStop()) return { cards: [...cards.values()], interrupted: true, pages };
+    searchStats.browserQueries++;
+    await page.goto(next, { waitUntil: 'domcontentloaded', timeout });
+    await acceptConsent(page);
+    if (!(await ensureNoCaptcha(page, query))) throw new Error('Google web CAPTCHA unresolved');
+    await sleep(800, 1500);
+    const found = await extractWebCards(page);
+    if (!found.length) {
+      const noResults = await page.evaluate(patterns => patterns.some(pattern =>
+        (document.body?.innerText || '').toLowerCase().includes(pattern.toLowerCase())), SELECTORS.noResultsPatterns);
+      if (!noResults) {
+        await diagnoseZeroResults(page, query);
+        throw new Error('Google web returned no article headings without an explicit no-results message');
+      }
+    }
+    for (const card of found) cards.set(card.url, card);
+    pages++;
+    next = await page.evaluate(selector => document.querySelector(selector)?.href || '', SELECTORS.webNextPage);
+    if (next && new URL(next).hostname !== new URL(url).hostname) throw new Error('Unexpected web pagination destination');
+    if (next && pages < maxPages) await sleep(1500, 3000);
+  }
+  await saveGoogleSession();
+  log.info(`[WEB] ${brand}: ${query}, ${pages} page(s), ${cards.size} candidates${next ? ' (page limit reached)' : ''}`);
+  return { cards: [...cards.values()], truncated: Boolean(next), pages };
+}
+
+module.exports = { searchGoogleNews, searchGoogleNewsRss, searchGoogleWeb, extractWebCards,
+  buildRssQuery, getSearchStats, resetSearchStats };

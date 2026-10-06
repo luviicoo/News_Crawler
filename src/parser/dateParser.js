@@ -182,11 +182,12 @@ function shouldPreferUrlDate(urlDate, primaryDate, primarySource) {
 
 /** Strategy 1: <time datetime="…"> */
 async function fromTimeElement(page) {
-  const val = await page.$eval(
-    'time[datetime]',
-    (el) => el.getAttribute('datetime'),
-  ).catch(() => null);
-  return parseToISO(val);
+  for (const selector of ['article time[datetime]', 'main time[datetime]', 'time[datetime]']) {
+    const val = await page.$eval(selector, el => el.getAttribute('datetime')).catch(() => null);
+    const iso = parseToISO(val);
+    if (iso) return iso;
+  }
+  return null;
 }
 
 /** Strategy 2: <meta property="article:published_time"> */
@@ -342,14 +343,17 @@ async function fromVisibleText(page) {
  * @param {string} articleUrl               For logging purposes
  * @returns {Promise<string|null>}          ISO 8601 date string or null
  */
-async function extractPublishDate(page, articleUrl) {
+async function extractPublishDate(page, articleUrl, { rssPublishDate = '' } = {}) {
   const urlDate = fromArticleUrl(articleUrl);
+  const rssDate = parseToISO(rssPublishDate);
   const strategies = [
     { name: 'time[datetime]',               fn: fromTimeElement },
     { name: 'meta article:published_time',  fn: fromMetaArticlePublished },
     { name: 'meta pubdate',                 fn: fromMetaPubdate },
     { name: 'meta DC.date.issued',          fn: fromMetaDCDate },
     { name: 'JSON-LD datePublished',        fn: fromJsonLd },
+    { name: 'article URL date',            fn: async () => urlDate },
+    { name: 'RSS pubDate',                 fn: async () => rssDate },
     { name: 'headline text date',           fn: fromHeadlineText },
     { name: 'og:updated_time',              fn: fromOgUpdatedTime },
     { name: 'visible text regex',           fn: fromVisibleText },
@@ -359,6 +363,15 @@ async function extractPublishDate(page, articleUrl) {
     try {
       const result = await fn(page);
       if (result) {
+        // Several publishers put a live clock in <time> or regenerate date
+        // metadata on every request. A historical RSS date avoids reading that
+        // clock as the article's publication date.
+        if (rssDate && ['time[datetime]', 'meta article:published_time', 'meta pubdate'].includes(name) &&
+            diffWholeDays(rssDate, result) >= 3 &&
+            diffWholeDays(new Date().toISOString(), result) === 0) {
+          log.date('RSS pubDate (page clock ignored)', rssDate);
+          return rssDate;
+        }
         if (shouldPreferUrlDate(urlDate, result, name)) {
           log.date('article URL date override', urlDate);
           return urlDate;

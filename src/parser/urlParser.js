@@ -112,6 +112,8 @@ function getRedirectTarget(url) {
  */
 function resolveGoogleRedirect(href) {
   if (!href) return '';
+  // Chromium error pages are browser state, never publisher redirect URLs.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !/^https?:/i.test(href)) return href;
 
   try {
     const base = 'https://www.google.com';

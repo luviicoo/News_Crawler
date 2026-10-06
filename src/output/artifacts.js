@@ -7,7 +7,7 @@
  * opened in Microsoft Excel on Windows.
  *
  * Column order (fixed):
- *   brand | article_title | article_url | publisher_domain | publisher_homepage | publish_date | sentiment | classification_source | article_id
+ *   brand | mentioned_brands | article_title | article_url | publisher_domain | publisher_homepage | publish_date | sentiment | classification_source | article_id
  *
  * Usage:
  *   const writer = createCsvWriter(filePath);
@@ -25,7 +25,8 @@ const BOM = '\uFEFF';
 
 // Column definitions in output order
 const COLUMNS = [
-  'brand',
+  'brand',                // tên hãng, hoặc "Ngành bảo hiểm" khi bài nhắc từ 2 hãng
+  'mentioned_brands',     // các hãng được nhắc trong tiêu đề/thân bài, phân cách bằng "; "
   'article_title',
   'article_url',
   'publisher_domain',
@@ -71,7 +72,7 @@ function rowToCsvLine(row) {
  * @param {string} filePath  Absolute or relative path to the output CSV
  * @returns {{ writeRow: Function, finalize: Function }}
  */
-function createCsvWriter(filePath) {
+function createCsvWriter(filePath, { append = false } = {}) {
   // Ensure the output directory exists
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
@@ -79,9 +80,13 @@ function createCsvWriter(filePath) {
   }
 
   // Open write stream and emit BOM + header immediately
-  const stream = fs.createWriteStream(filePath, { encoding: 'utf8' });
-  stream.write(BOM);
-  stream.write(COLUMNS.join(',') + '\n');
+  const stream = fs.createWriteStream(filePath, { encoding: 'utf8', flags: append ? 'a' : 'w' });
+  let streamError;
+  stream.on('error', err => { streamError = err; });
+  if (!append) {
+    stream.write(BOM);
+    stream.write(COLUMNS.join(',') + '\n');
+  }
 
   log.info(`CSV writer initialised: ${filePath}`);
 
@@ -107,26 +112,15 @@ function createCsvWriter(filePath) {
         reject(new Error('CSV stream is already closed'));
         return;
       }
+      if (streamError) return reject(streamError);
       const line = rowToCsvLine(row) + '\n';
 
       // Back-pressure: nếu write() trả về false (buffer đầy), đợi 'drain'
       // rồi mới resolve — tránh gọi resolve() 2 lần.
-      const flushed = stream.write(line, 'utf8', (err) => {
+      stream.write(line, 'utf8', err => {
         if (err) reject(err);
+        else { rowsWritten++; resolve(); }
       });
-
-      if (flushed) {
-        // Buffer chưa đầy: ghi xong ngay
-        rowsWritten++;
-        resolve();
-      } else {
-        // Buffer đầy: chờ drain rồi mới tiếp
-        stream.once('drain', () => {
-          rowsWritten++;
-          resolve();
-        });
-        stream.once('error', reject);
-      }
     });
   }
 
@@ -142,6 +136,7 @@ function createCsvWriter(filePath) {
         resolve();
         return;
       }
+      if (streamError) { stream.destroy(); reject(streamError); return; }
       stream.end(() => {
         streamClosed = true;
         log.info(`CSV finalised. ${rowsWritten} rows written to ${filePath}`);
@@ -251,6 +246,8 @@ async function captureArticleScreenshot(page, {
 }
 
 module.exports = {
+  COLUMNS,
+  rowToCsvLine,
   createCsvWriter,
   buildOutputPath,
   captureArticleScreenshot,

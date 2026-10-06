@@ -9,7 +9,8 @@
  * Concurrency được kiểm soát ở index.js qua p-limit.
  */
 
-const { newArticlePage, closeArticlePage } = require('./browser');
+const { newArticlePage, closeArticlePage, verifyInPopup } = require('./browser');
+const { isCaptchaPage } = require('./captcha');
 const { extractPublishDate } = require('../parser/dateParser');
 const { resolveGoogleRedirect } = require('../parser/urlParser');
 const { captureArticleScreenshot } = require('../output/artifacts');
@@ -52,10 +53,9 @@ async function waitForGoogleNewsWrapperRedirect(page, timeoutMs) {
     return;
   }
 
-  await page.waitForLoadState('networkidle', { timeout: timeoutMs }).catch(() => {});
   await page.waitForURL(
     (url) => !isGoogleNewsWrapperUrl(url.toString()),
-    { timeout: timeoutMs }
+    { timeout: timeoutMs, waitUntil: 'domcontentloaded' }
   ).catch(() => {});
 
   if (!isGoogleNewsWrapperUrl(page.url())) {
@@ -139,6 +139,33 @@ async function extractArticleTitle(page) {
 
 const EMPTY_IDENTITY = { canonicalUrl: '', ogUrl: '', alternateUrls: [] };
 
+async function extractArticleContent(page) {
+  return page.evaluate(() => {
+    // Publisher body selectors precede generic itemprop containers: some sites
+    // put articleBody on a wrapper containing the entire page and other stories.
+    const selectors = ['[data-field="body"]', '.fck_detail', '.singular-content',
+      '.article__body', '.article-body', '.article-content', '.detail-content', '.content-detail',
+      '.detail__content', '.detail_content', '.detail_body', '#content_body', '.post-content',
+      'article.article-detail', '[itemprop="articleBody"]', 'article', 'main'];
+    const texts = selectors.map(selector => {
+      const root = document.querySelector(selector);
+      if (!root) return '';
+      const content = root.cloneNode(true);
+      content.querySelectorAll('nav, aside, header, footer, script, style, iframe, template, noscript, ' +
+        '[hidden], [aria-hidden="true"], [class*="sidebar"], [class*="related"], ' +
+        '[class*="recommend"], [class*="suggest"], [class*="banner"], [class*="advertisement"], ' +
+        '[class*="lien-quan"], [class*="lienquan"], .tin-lien-quan, .box-tin-lien-quan')
+        .forEach(element => element.remove());
+      // Nested article elements are story cards, rather than the current body.
+      if (root.matches('article')) content.querySelectorAll('article').forEach(element => element.remove());
+      return (content.textContent || '').replace(/\s+/g, ' ').trim();
+    }).filter(Boolean);
+    const text = texts.find(value => value.length >= 500) || texts.sort((a, b) => b.length - a.length)[0] ||
+      document.querySelector('meta[name="description"]')?.content || '';
+    return text.slice(0, 30000);
+  }).catch(() => '');
+}
+
 /**
  * Link định danh của trang: canonical, og:url, hreflang (bản ngôn ngữ khác).
  * Dùng để chống trùng bài ở index.js (src/parser/articleIdentity.js).
@@ -184,6 +211,8 @@ async function fetchArticle(url, {
   brand = '',
   publisherDomain = '',
   screenshotDir = '',
+  rssPublishDate = '',
+  includeContent = false,
   shouldCapture = () => true,
 } = {}) {
   const PAGE_TIMEOUT     = parseInt(process.env.PAGE_TIMEOUT      || '30000', 10);
@@ -200,6 +229,10 @@ async function fetchArticle(url, {
     try {
       page = await newArticlePage();
       page.setDefaultTimeout(PAGE_TIMEOUT);
+      let navigationResponse;
+      page.on('response', response => {
+        if (response.request().isNavigationRequest() && response.frame() === page.mainFrame()) navigationResponse = response;
+      });
 
       const targetUrl = resolveGoogleRedirect(url) || url;
       if (targetUrl !== url) {
@@ -210,6 +243,11 @@ async function fetchArticle(url, {
         waitUntil: 'domcontentloaded',
         timeout: PAGE_TIMEOUT,
       });
+      if (await isCaptchaPage(page) && !(await verifyInPopup(page, isCaptchaPage))) {
+        // Skip unresolved challenges without reopening the same popup on retry.
+        return { finalUrl: page.url(), publishDate: null, screenshotPath: null,
+          articleTitle: '', error: 'CAPTCHA unresolved', ...EMPTY_IDENTITY };
+      }
       await waitForGoogleNewsWrapperRedirect(page, PAGE_TIMEOUT);
 
       // URL thật sau redirect
@@ -224,12 +262,26 @@ async function fetchArticle(url, {
         finalUrl = page.url();
       }
 
+      if (await isCaptchaPage(page)) {
+        if (!(await verifyInPopup(page, isCaptchaPage))) {
+          return { finalUrl: page.url(), publishDate: null, screenshotPath: null,
+            articleTitle: '', error: 'CAPTCHA unresolved', ...EMPTY_IDENTITY };
+        }
+        finalUrl = page.url();
+      }
       const canonicalFinalUrl = resolveGoogleRedirect(finalUrl) || finalUrl;
+      if (!/^https?:\/\//i.test(canonicalFinalUrl) || isGoogleNewsWrapperUrl(canonicalFinalUrl)) {
+        throw new Error(`Article destination unresolved: ${canonicalFinalUrl}`);
+      }
+      if (navigationResponse && navigationResponse.status() >= 400) {
+        throw new Error(`Article HTTP ${navigationResponse.status()}: ${canonicalFinalUrl}`);
+      }
       const articleTitle = await extractArticleTitle(page);
       const identity = await extractIdentityLinks(page);
+      const articleText = includeContent ? await extractArticleContent(page) : '';
 
       // Trích xuất ngày đăng (7 fallback strategies)
-      const publishDate = await extractPublishDate(page, canonicalFinalUrl);
+      const publishDate = await extractPublishDate(page, canonicalFinalUrl, { rssPublishDate });
 
       // Chụp màn hình 800×800 (thấy tiêu đề, tỷ lệ 1:1)
       let screenshotPath = null;
@@ -237,6 +289,7 @@ async function fetchArticle(url, {
         finalUrl: canonicalFinalUrl,
         publishDate,
         articleTitle,
+        articleText,
         ...identity,
       });
       if (captureAllowed) {
@@ -256,6 +309,7 @@ async function fetchArticle(url, {
         publishDate,
         screenshotPath,
         articleTitle,
+        articleText,
         ...identity,
       };
 
@@ -271,6 +325,7 @@ async function fetchArticle(url, {
           publishDate: null,
           screenshotPath: null,
           articleTitle: '',
+          error: err.message,
           ...EMPTY_IDENTITY,
         };
       }
@@ -288,4 +343,4 @@ async function fetchArticle(url, {
   };
 }
 
-module.exports = { fetchArticle };
+module.exports = { fetchArticle, extractArticleContent };

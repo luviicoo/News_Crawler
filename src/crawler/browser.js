@@ -39,17 +39,25 @@ let _browser       = null;
 let _googleContext = null; // 1 context dùng chung → giữ cookies qua các query
 let _googlePage    = null; // 1 tab tái sử dụng cho Google searches
 let _isHeadless    = false;
+let _verificationQueue = Promise.resolve();
+let _verificationBrowser = null;
+let _verificationGeneration = 0;
+let _managedSignals = false;
 
 // ─── Launch ───────────────────────────────────────────────────────────────────
 
-async function launchBrowser({ headless = false } = {}) {
+async function launchBrowser({ managedSignals = false } = {}) {
   if (_browser) return _browser;
 
+  const headless = true;
+  _managedSignals = managedSignals;
   _isHeadless = Boolean(headless);
   log.info(`Launching Chromium stealth (headless=${headless}) …`);
 
   _browser = await chromiumExtra.launch({
     headless,
+    handleSIGINT: !managedSignals,
+    handleSIGTERM: !managedSignals,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -85,6 +93,69 @@ async function launchBrowser({ headless = false } = {}) {
 
   log.info('Browser + Google context ready.');
   return _browser;
+}
+
+// Keep the crawler alive in the background; use a separate window only for
+// manual verification. Serialize prompts so concurrent articles open one window.
+function verifyInPopup(page, isChallengePage) {
+  const generation = _verificationGeneration;
+  const task = _verificationQueue.then(async () => {
+    if (generation !== _verificationGeneration && !page.isClosed()) {
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {});
+    }
+    if (page.isClosed() || !(await isChallengePage(page))) return !page.isClosed();
+    const configured = Number(process.env.CAPTCHA_PAUSE_MS || 120000);
+    const pauseMs = Number.isFinite(configured) ? Math.max(0, configured) : 120000;
+    if (!pauseMs) return false;
+    let popupBrowser;
+    try {
+      log.captcha(pauseMs);
+      const context = page.context();
+      const state = await context.storageState();
+      popupBrowser = await chromiumExtra.launch({ headless: false,
+        handleSIGINT: !_managedSignals, handleSIGTERM: !_managedSignals });
+      _verificationBrowser = popupBrowser;
+      const popupContext = await popupBrowser.newContext({
+        storageState: state, userAgent: USER_AGENT, locale: 'vi-VN',
+        timezoneId: 'Asia/Ho_Chi_Minh',
+      });
+      const popup = await popupContext.newPage();
+      await popup.goto(page.url(), { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await popup.bringToFront();
+      const deadline = Date.now() + pauseMs;
+      while (!popup.isClosed() && Date.now() < deadline) {
+        if (!(await isChallengePage(popup))) {
+          const verified = await popupContext.storageState();
+          await context.addCookies(verified.cookies);
+          // Install localStorage for any verification redirects before navigation.
+          await page.addInitScript((origins) => {
+            const entry = origins.find(item => item.origin === location.origin);
+            for (const item of entry?.localStorage || []) localStorage.setItem(item.name, item.value);
+          }, verified.origins);
+          await page.goto(popup.url(), { waitUntil: 'domcontentloaded', timeout: 30000 });
+          if (!(await isChallengePage(page))) {
+            _verificationGeneration++;
+            await saveGoogleSession();
+            log.info('[CAPTCHA] Verified; continuing in the background.');
+            return true;
+          }
+          // A token can be tied to the browser. Keep the window available for
+          // another manual attempt instead of accepting an unverified page.
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      log.warn('[CAPTCHA] Verification window closed or timed out.');
+      return false;
+    } catch (error) {
+      log.warn(`[CAPTCHA] Could not complete manual verification: ${error.message}`);
+      return false;
+    } finally {
+      if (popupBrowser) await popupBrowser.close().catch(() => {});
+      _verificationBrowser = null;
+    }
+  });
+  _verificationQueue = task.catch(() => {});
+  return task;
 }
 
 // ─── Lưu session sau mỗi search ──────────────────────────────────────────────
@@ -143,6 +214,7 @@ async function closePage(p)   { return closeArticlePage(p); }
 // ─── Shutdown ─────────────────────────────────────────────────────────────────
 
 async function closeBrowser() {
+  if (_verificationBrowser) await _verificationBrowser.close().catch(() => {});
   if (_browser) {
     // Lưu session trước khi đóng
     await saveGoogleSession();
@@ -164,6 +236,7 @@ module.exports = {
   getGooglePage,
   saveGoogleSession,
   clearGoogleSession,
+  verifyInPopup,
   newArticlePage,
   closeArticlePage,
   newPage,

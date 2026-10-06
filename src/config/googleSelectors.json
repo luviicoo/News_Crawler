@@ -1,7 +1,9 @@
 {
-  "_note": "Selector cho phương án dự phòng Google Search (chỉ dùng khi RSS lỗi hoặc trả 0 bài). Google đổi giao diện thì sửa file này, không cần sửa code. Khi nghi selector hỏng, crawler log [SELECTOR] và lưu HTML trang vào logs/selector-debug/ để đối chiếu.",
+  "_note": "Selector cho Google News dự phòng và Google Web tìm bổ sung. Khi nghi selector hỏng, crawler báo truy vấn chưa hoàn tất và lưu HTML để đối chiếu.",
   "searchBox": "textarea[name=\"q\"], input[name=\"q\"]",
   "resultsRoot": ["#search", "#rso", "#main"],
+  "webHeadlines": "h3",
+  "webNextPage": "#pnnext, a[aria-label=\"Next page\"], a[aria-label=\"Trang tiếp\"]",
   "cardContainerAttributes": ["data-hveid", "data-ved"],
   "headline": [
     "div[role=\"heading\"]",

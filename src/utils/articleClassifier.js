@@ -64,6 +64,8 @@ const BAO_VIET_NON_LIFE_PHRASES = [
   'cong ty co phan chung khoan bao viet',
 ];
 
+const PRUDENTIAL_FINANCE_PHRASES = ['prudential finance', 'prudential vietnam finance', 'tai chinh prudential'];
+
 // Keywords that usually indicate the article is about insurance business.
 const INSURANCE_KEYWORDS = [
   'bao hiem',
@@ -146,7 +148,11 @@ function isInsuranceRelated(title, content = '') {
   if (!text) return false;
   const normalizedTitle = normalizeText(title);
   if (includesKeyword(normalizedTitle, NON_VIETNAM_BRAND_PHRASES)) return false;
-  if (includesKeyword(text, NEGATIVE_KEYWORDS)) return false;
+  // An explicitly branded campaign (e.g. "An Concert by Prudential") is
+  // company communication, unlike unrelated entertainment search results.
+  const brandedPrudentialCampaign = /\bby prudential\b/.test(text) ||
+    /\bprudential (?:viet nam|vietnam)\b|\bbao hiem nhan tho prudential\b/.test(normalizeText(content));
+  if (includesKeyword(normalizedTitle, NEGATIVE_KEYWORDS) && !brandedPrudentialCampaign) return false;
   return includesKeyword(text, INSURANCE_KEYWORDS);
 }
 
@@ -177,6 +183,21 @@ function findMatchingBrands(article, brandDefs) {
     .filter(({ matchedFields }) => matchedFields.length > 0);
 }
 
+// Brands genuinely named in the article's title/body. Foreign parents, Bao Viet
+// non-life units and other Prudential entities don't count as a mention.
+function findMentionedBrands(article, brandDefs) {
+  const raw = `${article.title || ''} ${article.content || ''}`;
+  let text = ` ${normalizeText(raw)} `;
+  for (const phrase of [...NON_VIETNAM_BRAND_PHRASES, ...BAO_VIET_NON_LIFE_PHRASES, ...PRUDENTIAL_FINANCE_PHRASES]) {
+    text = text.split(` ${phrase} `).join(' ');
+  }
+  return brandDefs
+    .filter(brandDef => brandDef.brand === 'Prudential Viet Nam'
+      ? hasPrudentialVietnamMention(raw)
+      : containsAlias(text, buildAliasList(brandDef)))
+    .map(brandDef => brandDef.brand);
+}
+
 function findBrandByName(name, brandDefs) {
   const target = String(name || '').trim().toLowerCase();
   if (!target) return null;
@@ -192,19 +213,20 @@ function buildRuleDecision(article, targetBrandDef, brandDefs) {
   );
   const matchedBrands = titleMatches.map(({ brandDef }) => brandDef.brand);
 
-  if (targetMatch && matches.length === 1) {
+  if (targetMatch && targetMatch.matchedFields.some(field => field === 'title' || field === 'content')) {
     return {
       status: 'relevant',
       decision: 'accept',
       is_insurance_topic: true,
       is_target_brand: true,
       matched_brand: targetBrandDef.brand,
-      matched_brands: matchedBrands,
+      matched_brands: matches.filter(match => match.matchedFields.some(field => field === 'title' || field === 'content'))
+        .map(match => match.brandDef.brand),
       brand: targetBrandDef.brand,
       sentiment: 'neutral',
       confidence: 0.95,
       source: 'rules',
-      reason: `Matched target brand in ${targetMatch.matchedFields.join(', ')}`,
+      reason: `Matched target brand in ${targetMatch.matchedFields.join(', ')}; retained for this brand even when other insurers are mentioned`,
       needsModel: false,
     };
   }
@@ -529,12 +551,18 @@ async function classifyArticle(article, targetBrandDef, brandDefs, env = process
   const config = getClassifierConfig(env);
   const title = article.title || '';
   const content = article.content || '';
-  const articleText = buildArticleText(title, content);
-  const hasNegativeSignal = includesKeyword(articleText, NEGATIVE_KEYWORDS);
+  const hasNegativeSignal = includesKeyword(normalizeText(title), NEGATIVE_KEYWORDS);
   const brandMatches = findMatchingBrands(article, brandDefs);
 
   if (includesKeyword(normalizeText(title), NON_VIETNAM_BRAND_PHRASES)) {
     return buildIrrelevantResult('Rejected foreign or parent-company brand phrase in title', 'rules');
+  }
+  if (targetBrandDef.brand === 'Prudential Viet Nam' &&
+      includesKeyword(normalizeText(title), PRUDENTIAL_FINANCE_PHRASES)) {
+    return buildIrrelevantResult('Rejected Prudential consumer finance business in title', 'rules');
+  }
+  if (targetBrandDef.brand === 'Prudential Viet Nam' && !hasPrudentialVietnamMention(`${title} ${content}`)) {
+    return buildIrrelevantResult('No target insurer mention after excluding other Prudential entities', 'rules');
   }
 
   if (
@@ -580,16 +608,32 @@ async function classifyArticle(article, targetBrandDef, brandDefs, env = process
   return ruleDecision.needsModel ? applyFallback(ruleDecision, targetBrandDef, config) : ruleDecision;
 }
 
+function hasPrudentialVietnamMention(value) {
+  const text = normalizeText(value);
+  const otherEntities = /\bprudential\s+(?:finance|financial|plc|holborn life|tower|center|hong kong|hongkong|malaysia|singapore|indonesia|thailand|india|assessment|regulation|regulatory|authority|supervision)\b|\bmacro\s+prudential\b/g;
+  const consumerFinance = /\btai chinh\s+(?:(?:tnhh|mot thanh vien|mtv)\s+)*prudential\b/g;
+  const containsOtherEntity = otherEntities.test(text) || consumerFinance.test(text);
+  const cleaned = text.replace(otherEntities, '').replace(consumerFinance, '').replace(/\bprudential plc\b/g, '');
+  const localParent = /\bprudential plc\b.{0,350}\b(?:viet nam|vietnam)\b|\b(?:viet nam|vietnam)\b.{0,200}\bprudential plc\b/.test(text);
+  const localInsurer = /\bprudential (?:viet nam|vietnam)\b|\b(?:bao hiem nhan tho|bhnt)\b.{0,60}\bprudential\b|\bprudential\b.{0,120}\b(?:bao hiem nhan tho|bhnt)\b|\bby prudential\b/.test(cleaned);
+  // Once another entity is named, bare shorthand such as "Prudential" later
+  // in that story cannot by itself establish a Vietnam-insurer mention.
+  if (containsOtherEntity) return localInsurer || localParent;
+  return /\bprudential\b/.test(cleaned) || localParent;
+}
+
 module.exports = {
   BAO_VIET_NON_LIFE_PHRASES,
   NEGATIVE_KEYWORDS,
   NON_VIETNAM_BRAND_PHRASES,
   INSURANCE_KEYWORDS,
   normalizeText,
+  hasPrudentialVietnamMention,
   buildRuleDecision,
   getClassifierConfig,
   isInsuranceRelated,
   findMatchingBrands,
+  findMentionedBrands,
   analyzeWithLLM,
   classifyArticle,
 };
