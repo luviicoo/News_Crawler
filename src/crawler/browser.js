@@ -30,10 +30,42 @@ chromiumExtra.use(StealthPlugin());
 // File lưu cookies/localStorage giữa các lần chạy
 const STATE_FILE = path.join(__dirname, '..', '..', '.google-state.json');
 
-const USER_AGENT =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
-  'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-  'Chrome/124.0.0.0 Safari/537.36';
+// The User-Agent must agree with the real Chromium build and OS: a stale or
+// foreign UA disagrees with sec-ch-ua/navigator.platform and looks like a bot.
+const UA_PLATFORMS = {
+  darwin: 'Macintosh; Intel Mac OS X 10_15_7',
+  win32: 'Windows NT 10.0; Win64; x64',
+  linux: 'X11; Linux x86_64',
+};
+
+function buildUserAgent(version, platform = process.platform) {
+  const major = String(version || '').split('.')[0] || '131';
+  return `Mozilla/5.0 (${UA_PLATFORMS[platform] || UA_PLATFORMS.linux}) ` +
+    `AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${major}.0.0.0 Safari/537.36`;
+}
+
+// Only Google's own cookies/storage are worth keeping between runs (consent,
+// verification). Article tabs share the context, and saving every publisher
+// and ad network's storage made the session file grow to megabytes.
+const isGoogleHost = host => /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/i.test(String(host || '').replace(/^\./, ''));
+
+function filterGoogleState(state) {
+  const originHost = origin => { try { return new URL(origin).hostname; } catch (_) { return ''; } };
+  return {
+    cookies: (state?.cookies || []).filter(cookie => isGoogleHost(cookie.domain)),
+    origins: (state?.origins || []).filter(entry => isGoogleHost(originHost(entry.origin))),
+  };
+}
+
+function readSavedState() {
+  if (!fs.existsSync(STATE_FILE)) return undefined;
+  try {
+    return filterGoogleState(JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')));
+  } catch (err) {
+    log.warn(`Ignoring unreadable session file: ${err.message}`);
+    return undefined;
+  }
+}
 
 let _browser       = null;
 let _googleContext = null; // 1 context dùng chung → giữ cookies qua các query
@@ -43,6 +75,7 @@ let _verificationQueue = Promise.resolve();
 let _verificationBrowser = null;
 let _verificationGeneration = 0;
 let _managedSignals = false;
+let _userAgent = buildUserAgent('');
 
 // ─── Launch ───────────────────────────────────────────────────────────────────
 
@@ -71,8 +104,10 @@ async function launchBrowser({ managedSignals = false } = {}) {
     ],
   });
 
+  _userAgent = buildUserAgent(_browser.version?.());
+
   // Load cookies từ lần chạy trước nếu có
-  const storageState = fs.existsSync(STATE_FILE) ? STATE_FILE : undefined;
+  const storageState = readSavedState();
   if (storageState) {
     log.info('Loading saved Google session (cookies)…');
   } else {
@@ -80,7 +115,7 @@ async function launchBrowser({ managedSignals = false } = {}) {
   }
 
   _googleContext = await _browser.newContext({
-    userAgent: USER_AGENT,
+    userAgent: _userAgent,
     locale: 'vi-VN',
     timezoneId: 'Asia/Ho_Chi_Minh',
     viewport: { width: 1280, height: 800 },
@@ -116,7 +151,7 @@ function verifyInPopup(page, isChallengePage) {
         handleSIGINT: !_managedSignals, handleSIGTERM: !_managedSignals });
       _verificationBrowser = popupBrowser;
       const popupContext = await popupBrowser.newContext({
-        storageState: state, userAgent: USER_AGENT, locale: 'vi-VN',
+        storageState: state, userAgent: _userAgent, locale: 'vi-VN',
         timezoneId: 'Asia/Ho_Chi_Minh',
       });
       const popup = await popupContext.newPage();
@@ -167,7 +202,7 @@ function verifyInPopup(page, isChallengePage) {
 async function saveGoogleSession() {
   if (!_googleContext) return;
   try {
-    const state = await _googleContext.storageState();
+    const state = filterGoogleState(await _googleContext.storageState());
     fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
     log.info('Google session saved.');
   } catch (err) {
@@ -241,4 +276,6 @@ module.exports = {
   closeArticlePage,
   newPage,
   closePage,
+  buildUserAgent,
+  filterGoogleState,
 };

@@ -38,9 +38,12 @@ function openState(file, config) {
     if (event.type === 'config') header = event.value;
     if (event.type === 'query') {
       for (const card of event.cards || []) {
-        const current = candidates.get(card.id);
-        if (!current) candidates.set(card.id, { ...card, status: 'pending', attempts: 0 });
-        else if (!current.rssPublishDate && card.rssPublishDate) {
+        let current = candidates.get(card.id);
+        if (!current) candidates.set(card.id, current = { ...card, status: 'pending', attempts: 0, queryIds: [] });
+        // Derived from the journal on load (never written): which searches
+        // found this candidate, for per-query precision reporting.
+        if (!current.queryIds.includes(event.id)) current.queryIds.push(event.id);
+        if (!current.rssPublishDate && card.rssPublishDate) {
           current.rssPublishDate = card.rssPublishDate;
           // A later feed can supply a missing publication date.
           if (current.status === 'date-unverified') current.status = 'pending';

@@ -1,96 +1,23 @@
 'use strict';
 
 /**
- * Hybrid article classifier for Vietnam insurance listening.
+ * Hybrid article classifier for news listening.
  *
  * Flow:
  *   1. Rules layer rejects obvious noise / off-topic articles.
- *   2. LLM layer validates insurance context, target-brand match,
+ *   2. LLM layer validates topic context, target-brand match,
  *      sentiment, and possible brand reassignment.
  *
- * The exported classifyArticle() keeps compatibility with the current crawler
- * by returning decision/brand/source/sentiment/confidence/reason fields, while
- * also exposing classification status fields for crawler output and callers.
+ * The engine knows no brand or industry: every brand/topic rule comes from a
+ * profile (profiles/*.js) through createClassifier(profile). The module-level
+ * exports are bound to the default profile for backward compatibility.
  */
 
 const log = require('../output/logger');
+const { loadProfile } = require('../config/profile');
 
 const ALLOWED_DECISIONS = new Set(['accept', 'reject', 'reassign']);
 const ALLOWED_SENTIMENTS = new Set(['positive', 'negative', 'neutral']);
-
-// Keywords that usually indicate irrelevant content for commercial insurance listening.
-const NEGATIVE_KEYWORDS = [
-  'bao hiem xa hoi',
-  'bhxh',
-  'bao hiem that nghiep',
-  'bao hiem y te',
-  'bhyt',
-  'an sinh xa hoi',
-  'tro cap that nghiep',
-  'huong dan vien',
-  'ca si',
-  'am nhac',
-  'liveshow',
-  'concert',
-  'giai tri',
-  'phim',
-  'bong da',
-  'trong tai',
-  'arbritale',
-  'serie a',
-  'fotmob',
-];
-
-// Parent-company, regional, and foreign-market coverage is outside the
-// Vietnam competitor scope even when a Vietnamese publisher translates it.
-const NON_VIETNAM_BRAND_PHRASES = [
-  'chubb life hong kong',
-  'co phieu generali',
-  'generali tokenized',
-  'jefferies generali',
-  'manulife financial',
-  'prudential financial',
-  'prudential plc',
-  'sun life asia',
-  'sun life financial',
-];
-
-// These businesses share the Bao Viet name but are not Bao Viet Life.
-const BAO_VIET_NON_LIFE_PHRASES = [
-  'bao hiem bao viet',
-  'bao viet insurance',
-  'bao viet securities',
-  'chung khoan bao viet',
-  'cong ty co phan chung khoan bao viet',
-];
-
-const PRUDENTIAL_FINANCE_PHRASES = ['prudential finance', 'prudential vietnam finance', 'tai chinh prudential'];
-
-// Keywords that usually indicate the article is about insurance business.
-const INSURANCE_KEYWORDS = [
-  'bao hiem',
-  'nhan tho',
-  'phi nhan tho',
-  'boi thuong',
-  'hop dong',
-  'chi tra',
-  'quyen loi bao hiem',
-  'tu van bao hiem',
-  'dai ly bao hiem',
-  'doanh nghiep bao hiem',
-  'thi truong bao hiem',
-  'san pham bao hiem',
-  'insurtech',
-  'sun life',
-  'prudential',
-  'manulife',
-  'generali',
-  'aia viet nam',
-  'chubb life',
-  'dai ichi life',
-  'bao viet nhan tho',
-  'fwd',
-];
 
 function getClassifierConfig(env = process.env) {
   return {
@@ -138,24 +65,6 @@ function includesKeyword(text, keywords) {
   return keywords.some((keyword) => padded.includes(` ${keyword} `));
 }
 
-/**
- * Rules layer:
- * - reject if the article matches known negative/noise keywords
- * - otherwise require at least one insurance-business keyword
- */
-function isInsuranceRelated(title, content = '') {
-  const text = buildArticleText(title, content);
-  if (!text) return false;
-  const normalizedTitle = normalizeText(title);
-  if (includesKeyword(normalizedTitle, NON_VIETNAM_BRAND_PHRASES)) return false;
-  // An explicitly branded campaign (e.g. "An Concert by Prudential") is
-  // company communication, unlike unrelated entertainment search results.
-  const brandedPrudentialCampaign = /\bby prudential\b/.test(text) ||
-    /\bprudential (?:viet nam|vietnam)\b|\bbao hiem nhan tho prudential\b/.test(normalizeText(content));
-  if (includesKeyword(normalizedTitle, NEGATIVE_KEYWORDS) && !brandedPrudentialCampaign) return false;
-  return includesKeyword(text, INSURANCE_KEYWORDS);
-}
-
 function buildCandidateTexts(article) {
   return [
     { field: 'title', text: article.title || '' },
@@ -183,36 +92,6 @@ function findMatchingBrands(article, brandDefs) {
     .filter(({ matchedFields }) => matchedFields.length > 0);
 }
 
-// Lookalikes that only collide with a brand once diacritics/case are removed:
-// "bảo Việt Nam" (said Vietnam), "báo Việt" (Vietnamese press) and
-// drivetrain labels such as "Cầu trước (FWD)" or "FWD/AWD".
-const RAW_LOOKALIKES = [
-  /(?:cầu trước|dẫn động(?: cầu trước)?)\s*\(?\s*FWD\s*\)?/giu,
-  /\b(?:FWD|AWD|RWD|4WD)(?:\s*\/\s*(?:FWD|AWD|RWD|4WD))+\b/gu,
-];
-const RAW_BRAND_GUARDS = {
-  'Bao Viet Nhan Tho': /(?:Bảo Việt|BẢO VIỆT|Bao Viet|BAO VIET|Baoviet|BaoViet|BAOVIET)(?![ \t]+(?:Nam|NAM)\b)/u,
-  'FWD Viet Nam': /\bFWD\b/u,
-};
-
-// Brands genuinely named in the article's title/body. Foreign parents, Bao Viet
-// non-life units, other Prudential entities and lookalikes don't count.
-function findMentionedBrands(article, brandDefs) {
-  let raw = `${article.title || ''} ${article.content || ''}`.normalize('NFC');
-  for (const pattern of RAW_LOOKALIKES) raw = raw.replace(pattern, ' ');
-  let text = ` ${normalizeText(raw)} `;
-  for (const phrase of [...NON_VIETNAM_BRAND_PHRASES, ...BAO_VIET_NON_LIFE_PHRASES, ...PRUDENTIAL_FINANCE_PHRASES]) {
-    text = text.split(` ${phrase} `).join(' ');
-  }
-  return brandDefs
-    .filter(brandDef => {
-      if (brandDef.brand === 'Prudential Viet Nam') return hasPrudentialVietnamMention(raw);
-      const guard = RAW_BRAND_GUARDS[brandDef.brand];
-      return containsAlias(text, buildAliasList(brandDef)) && (!guard || guard.test(raw));
-    })
-    .map(brandDef => brandDef.brand);
-}
-
 function findBrandByName(name, brandDefs) {
   const target = String(name || '').trim().toLowerCase();
   if (!target) return null;
@@ -232,7 +111,7 @@ function buildRuleDecision(article, targetBrandDef, brandDefs) {
     return {
       status: 'relevant',
       decision: 'accept',
-      is_insurance_topic: true,
+      is_topic: true,
       is_target_brand: true,
       matched_brand: targetBrandDef.brand,
       matched_brands: matches.filter(match => match.matchedFields.some(field => field === 'title' || field === 'content'))
@@ -241,7 +120,7 @@ function buildRuleDecision(article, targetBrandDef, brandDefs) {
       sentiment: 'neutral',
       confidence: 0.95,
       source: 'rules',
-      reason: `Matched target brand in ${targetMatch.matchedFields.join(', ')}; retained for this brand even when other insurers are mentioned`,
+      reason: `Matched target brand in ${targetMatch.matchedFields.join(', ')}; retained for this brand even when other brands are mentioned`,
       needsModel: false,
     };
   }
@@ -250,7 +129,7 @@ function buildRuleDecision(article, targetBrandDef, brandDefs) {
     return {
       status: 'relevant',
       decision: 'reassign',
-      is_insurance_topic: true,
+      is_topic: true,
       is_target_brand: false,
       matched_brand: matches[0].brandDef.brand,
       matched_brands: matchedBrands,
@@ -267,7 +146,7 @@ function buildRuleDecision(article, targetBrandDef, brandDefs) {
     return {
       status: 'relevant',
       decision: 'accept',
-      is_insurance_topic: true,
+      is_topic: true,
       is_target_brand: true,
       matched_brand: targetBrandDef.brand,
       matched_brands: matchedBrands,
@@ -285,7 +164,7 @@ function buildRuleDecision(article, targetBrandDef, brandDefs) {
     return {
       status: 'relevant',
       decision: 'reassign',
-      is_insurance_topic: true,
+      is_topic: true,
       is_target_brand: false,
       matched_brand: firstMatch.brandDef.brand,
       matched_brands: matchedBrands,
@@ -301,7 +180,7 @@ function buildRuleDecision(article, targetBrandDef, brandDefs) {
   return {
     status: 'review',
     decision: 'reject',
-    is_insurance_topic: true,
+    is_topic: true,
     is_target_brand: false,
     matched_brand: null,
     matched_brands: [],
@@ -309,7 +188,7 @@ function buildRuleDecision(article, targetBrandDef, brandDefs) {
     sentiment: 'neutral',
     confidence: 0.35,
     source: 'rules',
-    reason: 'No clear brand alias match after insurance keyword pass',
+    reason: 'No clear brand alias match after topic keyword pass',
     needsModel: true,
   };
 }
@@ -338,22 +217,24 @@ function clampConfidence(value) {
   return num;
 }
 
-function buildLLMPrompt(targetBrandDef, article, brandDefs) {
+function buildLLMPrompt(targetBrandDef, article, brandDefs, topic = {}) {
+  const description = topic.description || 'chu de dang theo doi';
   const systemPrompt = [
-    'Ban la chuyen gia phan tich du lieu social listening cho nganh bao hiem tai Viet Nam.',
-    'Muc tieu la loai bo bai bao nhieu khong thuoc ngu canh kinh doanh bao hiem.',
+    topic.llmRole || 'Ban la chuyen gia phan tich du lieu social listening.',
+    `Muc tieu la loai bo bai bao nhieu khong thuoc ngu canh ${description}.`,
     '',
     'Quy tac bat buoc:',
     '1. Chi tra ve DUNG MOT object JSON hop le.',
     '2. Khong them markdown, khong them van ban ngoai JSON.',
-    '3. "is_insurance_topic" = false neu bai la tin giai tri, the thao, y te cong, bao hiem xa hoi, bao hiem y te nha nuoc, tro cap that nghiep, hoac noise.',
+    `3. "is_topic" = false neu bai khong thuoc ngu canh ${description}` +
+      (topic.llmExclusions ? `, hoac la ${topic.llmExclusions}.` : '.'),
     '4. "matched_brand" phai la mot trong danh sach thuong hieu cung cap hoac null.',
     '5. "sentiment" chi duoc la positive, negative, neutral.',
     '6. "confidence" phai la so tu 0 den 1.',
     '',
     'JSON schema:',
     '{',
-    '  "is_insurance_topic": true,',
+    '  "is_topic": true,',
     '  "is_target_brand": false,',
     '  "matched_brand": "string | null",',
     '  "sentiment": "positive | negative | neutral",',
@@ -379,7 +260,7 @@ function parseLLMResult(rawText, targetBrandDef, brandDefs) {
   const jsonText = stripMarkdownFences(rawText);
   const parsed = JSON.parse(jsonText);
 
-  const isInsuranceTopic = Boolean(parsed.is_insurance_topic);
+  const isTopic = Boolean(parsed.is_topic ?? parsed.is_insurance_topic);
   const isTargetBrand = Boolean(parsed.is_target_brand);
   const sentiment = String(parsed.sentiment || '').trim().toLowerCase();
   const confidence = clampConfidence(parsed.confidence);
@@ -405,7 +286,7 @@ function parseLLMResult(rawText, targetBrandDef, brandDefs) {
   let decision = 'accept';
   let brand = targetBrandDef.brand;
 
-  if (!isInsuranceTopic) {
+  if (!isTopic) {
     status = 'irrelevant';
     decision = 'reject';
     brand = null;
@@ -430,7 +311,7 @@ function parseLLMResult(rawText, targetBrandDef, brandDefs) {
   return {
     status,
     decision,
-    is_insurance_topic: isInsuranceTopic,
+    is_topic: isTopic,
     is_target_brand: isTargetBrand,
     matched_brand: matchedBrand,
     brand,
@@ -441,7 +322,7 @@ function parseLLMResult(rawText, targetBrandDef, brandDefs) {
   };
 }
 
-async function analyzeWithLLM(targetBrandDef, title, content = '', article = {}, brandDefs, config) {
+async function analyzeWithLLM(targetBrandDef, title, content = '', article = {}, brandDefs, config, topic = {}) {
   if (!config.geminiApiKey) {
     throw new Error('Missing Gemini API key (GEMINI_API_KEY or GOOGLE_API_KEY)');
   }
@@ -451,8 +332,7 @@ async function analyzeWithLLM(targetBrandDef, title, content = '', article = {},
 
   try {
     const endpoint =
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel)}` +
-      `:generateContent?key=${encodeURIComponent(config.geminiApiKey)}`;
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel)}:generateContent`;
 
     const prompt = buildLLMPrompt(
       targetBrandDef,
@@ -461,13 +341,16 @@ async function analyzeWithLLM(targetBrandDef, title, content = '', article = {},
         title,
         content,
       },
-      brandDefs
+      brandDefs,
+      topic
     );
 
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        // A header keeps the key out of URLs that may be logged.
+        'x-goog-api-key': config.geminiApiKey,
       },
       body: JSON.stringify({
         contents: [
@@ -514,7 +397,7 @@ function buildIrrelevantResult(reason, source = 'rules') {
   return {
     status: 'irrelevant',
     decision: 'reject',
-    is_insurance_topic: false,
+    is_topic: false,
     is_target_brand: false,
     matched_brand: null,
     brand: null,
@@ -532,7 +415,7 @@ function applyFallback(ruleDecision, targetBrandDef, config) {
     if (!hasTargetSignal) {
       return {
         ...buildIrrelevantResult(`Fallback reject: no reliable target-brand signal. ${ruleDecision.reason}`, 'fallback'),
-        is_insurance_topic: true,
+        is_topic: true,
       };
     }
 
@@ -551,104 +434,148 @@ function applyFallback(ruleDecision, targetBrandDef, config) {
 
   return {
     ...buildIrrelevantResult(`Fallback reject: ${ruleDecision.reason}`, 'fallback'),
-    is_insurance_topic: true,
+    is_topic: true,
   };
 }
 
+function findKeyword(text, keywords) {
+  const padded = ` ${text} `;
+  return keywords.find((keyword) => padded.includes(` ${keyword} `)) || null;
+}
+
+const normalizeList = (values) => [...new Set((values || []).map(normalizeText).filter(Boolean))];
+const MATCHER_HELPERS = { normalizeText };
+
 /**
- * Hybrid flow:
- *   - rules layer first
- *   - if rules fail => irrelevant immediately
- *   - else LLM validates topic/brand/sentiment
- *   - if LLM says non-insurance => irrelevant
+ * Build a classifier from a profile's topic and brand rules.
+ *
+ * Brand-level rules are read from the brand definitions passed to each call
+ * (profile.brands, or a subset/variant of them):
+ *   - lookalikes:     raw patterns removed before matching (e.g. "FWD/AWD")
+ *   - excludePhrases: same-name entities removed before matching; in the
+ *                     title they reject the article for that target brand
+ *   - requirePattern: raw (diacritic/case-sensitive) evidence also required
+ *   - mentionMatcher: (rawText, { normalizeText }) => bool, replaces the
+ *                     alias check for brands too ambiguous for aliases alone
  */
-async function classifyArticle(article, targetBrandDef, brandDefs, env = process.env) {
-  const config = getClassifierConfig(env);
-  const title = article.title || '';
-  const content = article.content || '';
-  const hasNegativeSignal = includesKeyword(normalizeText(title), NEGATIVE_KEYWORDS);
-  const brandMatches = findMatchingBrands(article, brandDefs);
+function createClassifier(profile) {
+  const topic = profile.topic || {};
+  const topicKeywords = normalizeList(topic.keywords);
+  const negativeKeywords = normalizeList(topic.negativeTitleKeywords);
+  const globalExcludes = normalizeList(profile.excludePhrases);
+  const topicLabel = topic.description || 'tracked topic';
 
-  if (includesKeyword(normalizeText(title), NON_VIETNAM_BRAND_PHRASES)) {
-    return buildIrrelevantResult('Rejected foreign or parent-company brand phrase in title', 'rules');
-  }
-  if (targetBrandDef.brand === 'Prudential Viet Nam' &&
-      includesKeyword(normalizeText(title), PRUDENTIAL_FINANCE_PHRASES)) {
-    return buildIrrelevantResult('Rejected Prudential consumer finance business in title', 'rules');
-  }
-  if (targetBrandDef.brand === 'Prudential Viet Nam' && !hasPrudentialVietnamMention(`${title} ${content}`)) {
-    return buildIrrelevantResult('No target insurer mention after excluding other Prudential entities', 'rules');
-  }
-
-  if (
-    targetBrandDef.brand === 'Bao Viet Nhan Tho' &&
-    includesKeyword(normalizeText(title), BAO_VIET_NON_LIFE_PHRASES)
-  ) {
-    return buildIrrelevantResult('Rejected non-life Bao Viet business in title', 'rules');
+  /**
+   * Rules layer:
+   * - reject if the title names an excluded entity or a negative keyword
+   *   (unless the profile's negativeOverride accepts it)
+   * - otherwise require at least one topic keyword (if any are configured)
+   */
+  function isTopicRelated(title, content = '') {
+    const text = buildArticleText(title, content);
+    if (!text) return false;
+    const normalizedTitle = normalizeText(title);
+    if (includesKeyword(normalizedTitle, globalExcludes)) return false;
+    const override = Boolean(topic.negativeOverride?.({ text, title: normalizedTitle, content: normalizeText(content) }));
+    if (includesKeyword(normalizedTitle, negativeKeywords) && !override) return false;
+    return topicKeywords.length ? includesKeyword(text, topicKeywords) : true;
   }
 
-  if (!isInsuranceRelated(title, content) && (hasNegativeSignal || brandMatches.length === 0)) {
-    return buildIrrelevantResult('Failed rules layer: not in commercial insurance context', 'rules');
+  // Brands genuinely named in the article's title/body. Excluded entities,
+  // lookalikes and brand-specific matchers come from the profile.
+  function findMentionedBrands(article, brandDefs) {
+    let raw = `${article.title || ''} ${article.content || ''}`.normalize('NFC');
+    for (const brandDef of brandDefs) {
+      for (const pattern of brandDef.lookalikes || []) raw = raw.replace(pattern, ' ');
+    }
+    let text = ` ${normalizeText(raw)} `;
+    const phrases = [...globalExcludes, ...brandDefs.flatMap(brandDef => normalizeList(brandDef.excludePhrases))];
+    for (const phrase of phrases) text = text.split(` ${phrase} `).join(' ');
+    return brandDefs
+      .filter(brandDef => {
+        if (brandDef.mentionMatcher) return Boolean(brandDef.mentionMatcher(raw, MATCHER_HELPERS));
+        return containsAlias(text, buildAliasList(brandDef)) &&
+          (!brandDef.requirePattern || brandDef.requirePattern.test(raw));
+      })
+      .map(brandDef => brandDef.brand);
   }
 
-  const ruleDecision = buildRuleDecision(article, targetBrandDef, brandDefs);
+  /**
+   * Hybrid flow:
+   *   - rules layer first
+   *   - if rules fail => irrelevant immediately
+   *   - else LLM validates topic/brand/sentiment
+   *   - if LLM says off-topic => irrelevant
+   */
+  async function classifyArticle(article, targetBrandDef, brandDefs, env = process.env) {
+    const config = getClassifierConfig(env);
+    const title = article.title || '';
+    const content = article.content || '';
+    const normalizedTitle = normalizeText(title);
+    const hasNegativeSignal = includesKeyword(normalizedTitle, negativeKeywords);
+    const brandMatches = findMatchingBrands(article, brandDefs);
 
-  if (config.mode === 'rules') {
+    const excluded = findKeyword(normalizedTitle, globalExcludes);
+    if (excluded) {
+      return buildIrrelevantResult(`Rejected excluded entity phrase "${excluded}" in title`, 'rules');
+    }
+    const sameName = findKeyword(normalizedTitle, normalizeList(targetBrandDef.excludePhrases));
+    if (sameName) {
+      return buildIrrelevantResult(`Rejected same-name entity "${sameName}" for ${targetBrandDef.brand} in title`, 'rules');
+    }
+    if (targetBrandDef.mentionMatcher && !targetBrandDef.mentionMatcher(`${title} ${content}`, MATCHER_HELPERS)) {
+      return buildIrrelevantResult(`No ${targetBrandDef.brand} mention after excluding same-name entities`, 'rules');
+    }
+
+    if (!isTopicRelated(title, content) && (hasNegativeSignal || brandMatches.length === 0)) {
+      return buildIrrelevantResult(`Failed rules layer: not in ${topicLabel} context`, 'rules');
+    }
+
+    const ruleDecision = buildRuleDecision(article, targetBrandDef, brandDefs);
+
+    if (config.mode === 'rules') {
+      return ruleDecision.needsModel ? applyFallback(ruleDecision, targetBrandDef, config) : ruleDecision;
+    }
+
+    if (config.mode === 'hybrid' && !ruleDecision.needsModel) {
+      return ruleDecision;
+    }
+
+    if (config.mode === 'hybrid' || config.mode === 'gemini') {
+      try {
+        const llmResult = await analyzeWithLLM(targetBrandDef, title, content, article, brandDefs, config, topic);
+        if (!llmResult.is_topic) {
+          return {
+            ...llmResult,
+            status: 'irrelevant',
+            decision: 'reject',
+            brand: null,
+          };
+        }
+        return llmResult;
+      } catch (err) {
+        log.warn(`Gemini classification failed for ${article.url || title}: ${err.message}`);
+        return applyFallback(ruleDecision, targetBrandDef, config);
+      }
+    }
+
+    log.warn(`Unknown CLASSIFIER_MODE="${config.mode}", falling back to rules.`);
     return ruleDecision.needsModel ? applyFallback(ruleDecision, targetBrandDef, config) : ruleDecision;
   }
 
-  if (config.mode === 'hybrid' && !ruleDecision.needsModel) {
-    return ruleDecision;
-  }
-
-  if (config.mode === 'hybrid' || config.mode === 'gemini') {
-    try {
-      const llmResult = await analyzeWithLLM(targetBrandDef, title, content, article, brandDefs, config);
-      if (!llmResult.is_insurance_topic) {
-        return {
-          ...llmResult,
-          status: 'irrelevant',
-          decision: 'reject',
-          brand: null,
-        };
-      }
-      return llmResult;
-    } catch (err) {
-      log.warn(`Gemini classification failed for ${article.url || title}: ${err.message}`);
-      return applyFallback(ruleDecision, targetBrandDef, config);
-    }
-  }
-
-  log.warn(`Unknown CLASSIFIER_MODE="${config.mode}", falling back to rules.`);
-  return ruleDecision.needsModel ? applyFallback(ruleDecision, targetBrandDef, config) : ruleDecision;
+  return { profile, isTopicRelated, findMentionedBrands, classifyArticle };
 }
 
-function hasPrudentialVietnamMention(value) {
-  const text = normalizeText(value);
-  const otherEntities = /\bprudential\s+(?:finance|financial|plc|holborn life|tower|center|hong kong|hongkong|malaysia|singapore|indonesia|thailand|india|assessment|regulation|regulatory|authority|supervision)\b|\bmacro\s+prudential\b/g;
-  const consumerFinance = /\btai chinh\s+(?:(?:tnhh|mot thanh vien|mtv)\s+)*prudential\b/g;
-  const containsOtherEntity = otherEntities.test(text) || consumerFinance.test(text);
-  const cleaned = text.replace(otherEntities, '').replace(consumerFinance, '').replace(/\bprudential plc\b/g, '');
-  const localParent = /\bprudential plc\b.{0,350}\b(?:viet nam|vietnam)\b|\b(?:viet nam|vietnam)\b.{0,200}\bprudential plc\b/.test(text);
-  const localInsurer = /\bprudential (?:viet nam|vietnam)\b|\b(?:bao hiem nhan tho|bhnt)\b.{0,60}\bprudential\b|\bprudential\b.{0,120}\b(?:bao hiem nhan tho|bhnt)\b|\bby prudential\b/.test(cleaned);
-  // Once another entity is named, bare shorthand such as "Prudential" later
-  // in that story cannot by itself establish a Vietnam-insurer mention.
-  if (containsOtherEntity) return localInsurer || localParent;
-  return /\bprudential\b/.test(cleaned) || localParent;
-}
+const defaultClassifier = createClassifier(loadProfile());
 
 module.exports = {
-  BAO_VIET_NON_LIFE_PHRASES,
-  NEGATIVE_KEYWORDS,
-  NON_VIETNAM_BRAND_PHRASES,
-  INSURANCE_KEYWORDS,
   normalizeText,
-  hasPrudentialVietnamMention,
   buildRuleDecision,
   getClassifierConfig,
-  isInsuranceRelated,
   findMatchingBrands,
-  findMentionedBrands,
   analyzeWithLLM,
-  classifyArticle,
+  createClassifier,
+  isTopicRelated: defaultClassifier.isTopicRelated,
+  findMentionedBrands: defaultClassifier.findMentionedBrands,
+  classifyArticle: defaultClassifier.classifyArticle,
 };

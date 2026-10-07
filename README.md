@@ -40,7 +40,7 @@ npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 
 
 Mặc định lấy 7 ngày tính cả hôm nay theo giờ Việt Nam (UTC+7). Có thể đặt `DATE_FROM` và `DATE_TO` trong `.env`; tham số dòng lệnh được ưu tiên. Cung cấp cả hai ngày theo định dạng `YYYY-MM-DD`. Nếu nhập thiếu hoặc sai ngày, chương trình báo lỗi; nếu ngày đầu lớn hơn ngày cuối, chương trình tự đổi thứ tự.
 
-Các thương hiệu: Sun Life, Chubb Life, FWD, Dai-ichi Life, AIA, Bảo Việt Nhân Thọ, Prudential, Manulife và Generali. Sửa tên, bí danh và truy vấn tại `src/config/brands.js`.
+Brand, ngành, báo và mọi rule nhận diện nằm trong **profile** (`profiles/*.js`), không nằm trong code. Profile mặc định `insurance-vn` gồm Sun Life, Chubb Life, FWD, Dai-ichi Life, AIA, Bảo Việt Nhân Thọ, Prudential, Manulife và Generali. Chọn profile khác bằng `--profile <tên>` hoặc `PROFILE`. Xem [Tạo profile cho ngành/brand mới](#tạo-profile-cho-ngànhbrand-mới).
 
 ## Luồng xử lý
 
@@ -48,7 +48,7 @@ Trình duyệt tìm kiếm dự phòng, tải bài và chụp ảnh đều chạ
 
 RSS ở đây là **RSS tìm kiếm của Google News**, không phải RSS riêng của từng báo. Mỗi truy vấn tạo một URL `https://news.google.com/rss/search?q=...&hl=vi&gl=VN&ceid=VN:vi`. Ví dụ tháng 01/2018: `"Prudential" after:2017-12-31 before:2018-02-01`; thêm `site:vnexpress.net` để tìm trong một báo. Khoảng ngày cuối cùng vẫn được kiểm tra theo ngày đăng thật của bài ở UTC+7.
 
-1. Lập toàn bộ kế hoạch trước khi tìm: từng từ khóa cho cả khoảng ngày và từng tháng; thêm từ khóa thương hiệu + `site:` cho từng báo, từng năm. Mặc định có 16 báo trong `src/crawler/plan.js`, thay được bằng `--publishers` hoặc `PUBLISHER_DOMAINS`.
+1. Lập toàn bộ kế hoạch trước khi tìm: từng từ khóa cho cả khoảng ngày và từng tháng; thêm từ khóa thương hiệu + `site:` cho từng báo, từng năm. Danh sách báo lấy từ `publishers` của profile, thay tạm được bằng `--publishers` hoặc `PUBLISHER_DOMAINS`.
 2. Chạy các truy vấn RSS. Tìm theo tháng/báo luôn được thực hiện, kể cả RSS trả ít hơn 100 kết quả. Feed từ 100 bài được chia đôi tiếp xuống một ngày, giữ cả kết quả của cửa sổ cha và con. Truy vấn RSS (kể cả truy vấn con khi chia đôi) nghỉ `RSS_DELAY_*`, ngắn hơn Web; bài của truy vấn trước được đọc song song khi RSS tìm tiếp. Truy vấn theo báo dùng `siteQuery` có ngoặc kép nếu hãng khai báo (Bảo Việt: không có ngoặc kép, mỗi báo trả hàng nghìn bài không liên quan). Ngày vẫn chạm giới hạn được ghi trong báo cáo độ phủ.
 3. Chạy **Google Web** bổ sung theo tháng và báo/năm dù RSS đã có bài. Trình duyệt chạy ẩn; chỉ CAPTCHA mới mở cửa sổ xác thực. Web phân trang tối đa `WEB_MAX_PAGES`; chạm giới hạn, bị chặn hoặc không đọc được giao diện được ghi là chưa hoàn tất.
 4. Lưu các URL tìm được vào tiến độ trước khi đánh dấu truy vấn xong. Mở bài, giải chuyển hướng, đọc tiêu đề, thân bài, ngày đăng và liên kết định danh. Không loại bài chỉ vì tiêu đề chưa nhắc thương hiệu. Một URL được hãng khác tìm thấy lại không bị mở lần nữa: kết quả lần đọc trước (hãng có trong bài, ngoài khoảng ngày, không phải bài báo) được dùng lại.
@@ -104,9 +104,10 @@ npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 
 | --- | --- | --- |
 | `HEADLESS` | `true` | Crawler luôn chạy ẩn, kể cả cấu hình cũ đặt `false`; `--headless` vẫn được chấp nhận |
 | `DATE_FROM`, `DATE_TO` | 7 ngày gần nhất | Khoảng ngày theo giờ Việt Nam |
-| `BRAND` | Tất cả 9 hãng | Chọn một hãng, ví dụ `Prudential`; CLI `--brand` ưu tiên |
+| `PROFILE` | `insurance-vn` | Tên file trong `profiles/` hoặc đường dẫn tới profile; CLI `--profile` ưu tiên |
+| `BRAND` | Mọi brand trong profile | Chọn một brand theo tên hoặc alias, ví dụ `Prudential`; CLI `--brand` ưu tiên |
 | `SCREENSHOTS` | `false` | Chỉ chụp khi bật rõ ràng |
-| `PUBLISHER_DOMAINS` | 16 báo | Danh sách domain phân cách bằng dấu phẩy |
+| `PUBLISHER_DOMAINS` | `publishers` của profile | Danh sách domain phân cách bằng dấu phẩy |
 | `WEB_MAX_PAGES` | `5` | Số trang tối đa cho mỗi truy vấn Web, CLI `--web-pages` ưu tiên |
 | `RSS_TIMEOUT_MS` | `30000` | Thời gian chờ một yêu cầu RSS |
 | `ARTICLE_CONCURRENCY` | `3` | Số bài tải đồng thời trong mỗi truy vấn |
@@ -127,7 +128,23 @@ npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 
 | `GEMINI_TIMEOUT_MS` | `15000` | Thời gian chờ Gemini, mili giây |
 | `PR_IMAGE_CAPTURE_CONCURRENCY` | `3` | Số tác vụ của script chụp ảnh riêng, giới hạn 1–6 |
 
-File `.env.example` chọn `hybrid` và `gemini-2.5-pro`, khác mặc định trong mã. `rules` chỉ dùng quy tắc; `hybrid` gọi Gemini cho trường hợp cần xét thêm; `gemini` gọi mô hình cho bài vượt qua bộ lọc sơ bộ. Nếu thiếu khóa hoặc API lỗi, chương trình dùng xử lý dự phòng. Đặt `CLASSIFIER_MODE=rules` để chạy chỉ bằng quy tắc.
+File `.env.example` chọn `hybrid`. `rules` chỉ dùng quy tắc; `hybrid` gọi Gemini cho trường hợp cần xét thêm; `gemini` gọi mô hình cho bài vượt qua bộ lọc sơ bộ. Nếu thiếu khóa hoặc API lỗi, chương trình dùng xử lý dự phòng. Đặt `CLASSIFIER_MODE=rules` để chạy chỉ bằng quy tắc.
+
+## Tạo profile cho ngành/brand mới
+
+Mỗi dự án theo dõi (một ngành hoặc một nhóm brand) là một file trong `profiles/`. Engine không chứa tên brand hay ngành nào, nên thêm ngành mới không cần sửa code.
+
+1. Sao chép `profiles/_template.js` thành `profiles/<ten>.js`. Mỗi trường trong file mẫu đều có chú thích.
+2. Khai báo `industryLabel`, `publishers`, `topic` (từ khóa ngành, từ khóa loại trừ, mô tả cho Gemini) và `brands` (`aliases`, `queries`, `siteQuery`).
+3. Thêm rule chi tiết cho brand dễ nhầm. Thử theo thứ tự này:
+   - `excludePhrases`: pháp nhân trùng tên;
+   - `lookalikes`: cụm trông giống tên brand;
+   - `requirePattern`: bắt buộc cách viết gốc;
+   - `mentionMatcher`: hàm tùy biến, chỉ dùng khi các trường trên không đủ.
+4. Kiểm tra trước khi chạy: `npm start -- --profile <ten> --daily --plan-only`. Profile sai trường sẽ báo lỗi kèm tên brand. Truy vấn `site:` không có ngoặc kép sẽ bị cảnh báo vì dễ kéo về hàng trăm bài không liên quan.
+5. Chạy: `npm start -- --profile <ten> --daily`. Output tách riêng theo `outputPrefix` (mặc định là tên profile).
+
+Sau mỗi lượt chạy, `.coverage.json` có `query_precision` (số bài tìm được, nhận và loại của từng truy vấn) và `noisy_queries` (từ 20 bài bị loại trở lên, tỷ lệ nhận dưới 5%). Log `[HEALTH] WARN noisy query` chỉ ra truy vấn cần thu hẹp trong profile.
 
 ## Đầu ra
 
@@ -172,10 +189,14 @@ Script chạy ẩn, chỉ mở cửa sổ khi gặp CAPTCHA cần xác thực. �
 ## Cấu trúc thư mục
 
 ```text
+profiles/
+  insurance-vn.js             Profile mặc định: brand bảo hiểm, báo, rule nhận diện
+  _template.js                Profile mẫu có chú thích từng trường
 src/
   index.js                    Điều phối crawler, lọc ngày
   capture_pr_images.js        Chụp ảnh từ danh sách JSON
-  config/brands.js            Thương hiệu, bí danh, truy vấn
+  config/profile.js           Nạp và kiểm tra profile
+  config/brands.js            Brand của profile mặc định (tương thích cũ)
   config/urlIdentity.js       Luật nhận dạng cùng bài (ngôn ngữ, AMP, hậu tố ID)
   config/googleSelectors.json Selector Google Search, mẫu CAPTCHA
   crawler/browser.js          Chromium và phiên Google
@@ -189,8 +210,8 @@ src/
   parser/articleIdentity.js   Loại trùng sau khi mở bài, cấp article_id
   output/artifacts.js         CSV và ảnh chụp
   output/logger.js            Log ra console
-  utils/articleClassifier.js  Quy tắc và Gemini
-test/core.test.js             Kiểm thử chức năng hiện tại
+  utils/articleClassifier.js  Bộ phân loại chung (rule từ profile) và Gemini
+test/*.test.js                Kiểm thử (profile.test.js: profile, session, chặn tài nguyên)
 ```
 
 ## Kiểm thử và xử lý lỗi

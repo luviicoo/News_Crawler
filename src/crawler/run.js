@@ -8,7 +8,7 @@ const { createArticleRegistry } = require('../parser/articleIdentity');
 const { normalizeUrl, extractHostname, buildHomepage, isHomepageUrl } = require('../parser/urlParser');
 const { formatDateVN } = require('../parser/dateParser');
 const { createCsvWriter } = require('../output/artifacts');
-const { findMentionedBrands } = require('../utils/articleClassifier');
+const defaultClassifier = require('../utils/articleClassifier');
 const { INDUSTRY_LABEL } = require('../config/brands');
 const log = require('../output/logger');
 
@@ -16,6 +16,10 @@ const RETRYABLE = new Set(['pending', 'failed', 'date-unverified', 'content-unve
 const BLOCKED = new Set(['facebook.com', 'arabsvoice.net', 'tin.skydoor.net', 'twaslnews.com']);
 const isBlocked = url => BLOCKED.has(extractHostname(url).replace(/^m\./, ''));
 const isListing = url => isHomepageUrl(url) || /\/(?:tags?|authors?|search|tim-kiem)(?:\/|\?|$)|\.pdf(?:\?|$)/i.test(url);
+// A search whose hits are at least this many rejected articles and almost
+// never accepted ones needs a narrower (e.g. quoted) query in the profile.
+const NOISY_MIN_REJECTED = 20;
+const NOISY_MAX_RATE = 0.05;
 const pause = (min, max) => max > 0
   ? new Promise(resolve => setTimeout(resolve, Math.max(0, min + Math.random() * (max - min)))) : Promise.resolve();
 
@@ -23,8 +27,9 @@ async function runCrawl(options, deps) {
   const { brands, allBrands, dateRange, plan, outputPath, statePath, reportPath,
     screenshots = false, screenshotDir = '', concurrency = 3, refresh = false,
     webMaxPages = 5, searchDelayMin = 3000, searchDelayMax = 6000, rssDelayMin = 1000, rssDelayMax = 2000,
-    daily = false, maxAttempts = 3, seedStatePaths = [],
+    daily = false, maxAttempts = 3, seedStatePaths = [], industryLabel = INDUSTRY_LABEL,
     withinRange, shouldStop = () => false } = options;
+  const findMentionedBrands = deps.findMentionedBrands || defaultClassifier.findMentionedBrands;
   // A daily checkpoint accumulates across days, so its identity excludes the
   // moving date window and plan; a historical checkpoint is tied to both.
   const state = openState(statePath, daily
@@ -72,6 +77,33 @@ async function runCrawl(options, deps) {
     return null;
   }
 
+  // Precision per search phrase (all date windows of the same brand/kind/query
+  // combined): which profile queries bring mostly rejected articles.
+  function queryPrecision() {
+    const taskById = new Map(plan.map(task => [task.id, task]));
+    const groups = new Map();
+    for (const candidate of state.candidates.values()) {
+      const keys = new Set();
+      for (const id of candidate.queryIds || []) {
+        const task = taskById.get(id);
+        if (!task) continue;
+        const key = JSON.stringify([task.brand, task.kind, task.channel, task.query]);
+        if (keys.has(key)) continue;
+        keys.add(key);
+        if (!groups.has(key)) groups.set(key, { brand: task.brand, kind: task.kind, channel: task.channel,
+          query: task.query, results: 0, accepted: 0, rejected: 0, other: 0 });
+        const group = groups.get(key);
+        group.results++;
+        if (candidate.status === 'accepted' || candidate.status === 'duplicate') group.accepted++;
+        else if (candidate.status === 'rejected') group.rejected++;
+        else group.other++;
+      }
+    }
+    return [...groups.values()]
+      .map(group => ({ ...group, accepted_rate: Number((group.accepted / group.results).toFixed(3)) }))
+      .sort((a, b) => b.rejected - a.rejected || a.accepted_rate - b.accepted_rate);
+  }
+
   function report() {
     const queryStatuses = {};
     const candidateStatuses = {};
@@ -98,6 +130,7 @@ async function runCrawl(options, deps) {
     const stats = deps.getSearchStats?.() || {};
     const saturatedDays = [...state.queries.values()].flatMap(query => query.saturatedDays || []);
     const webEnabled = plan.some(task => task.channel === 'web');
+    const precision = queryPrecision();
     const value = {
       updated_at: new Date().toISOString(), mode: daily ? 'daily' : 'historical', dateRange, outputPath, statePath,
       planned_queries: plan.length, query_statuses: queryStatuses,
@@ -108,6 +141,8 @@ async function runCrawl(options, deps) {
       coverage_checks_complete: (webEnabled || daily) && !unresolvedQueries.length && !unresolvedArticles.length && !saturatedDays.length,
       unresolved_queries: unresolvedQueries, unresolved_articles: unresolvedArticles, abandoned_articles: abandonedArticles,
       saturated_day_queries: saturatedDays, search_stats: stats,
+      noisy_queries: precision.filter(group => group.rejected >= NOISY_MIN_REJECTED && group.accepted_rate < NOISY_MAX_RATE),
+      query_precision: precision,
       queries: plan.map(task => ({ ...task, ...(state.queries.get(task.id) || { status: 'pending' }) })),
       limitation: 'Search indexes are not a complete publisher archive. Finished plans do not prove every published article was indexed. Web date filters are approximate; article dates are checked separately.',
     };
@@ -161,10 +196,10 @@ async function runCrawl(options, deps) {
       if (classification.decision !== 'accept' || classification.brand !== target.brand) {
         return (verdict = { status: 'rejected', reason: classification.reason, textBrands });
       }
-      // A story naming several insurers is one industry article, not one row per
+      // A story naming several tracked brands is one industry article, not one row per
       // brand. The shared scope makes later brands' searches dedupe against it.
       const mentioned = textBrands;
-      const label = mentioned.length > 1 ? INDUSTRY_LABEL : target.brand;
+      const label = mentioned.length > 1 ? industryLabel : target.brand;
       const identity = { scope: label, finalUrl: info.finalUrl, title: info.articleTitle,
         canonicalUrl: info.canonicalUrl, ogUrl: info.ogUrl, alternateUrls: info.alternateUrls };
       const claim = registry.claim(identity);

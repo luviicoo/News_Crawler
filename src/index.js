@@ -12,14 +12,13 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 // Always load the env file from this project, even when the command is
 // launched from a different working directory after the folder is moved.
 require('dotenv').config({ path: path.join(PROJECT_ROOT, '.env') });
-// p-limit v3.x uses CommonJS exports
-const { BRANDS } = require('./config/brands');
+const { loadProfile, profileWarnings } = require('./config/profile');
 const { launchBrowser, closeBrowser } = require('./crawler/browser');
 const { searchGoogleNewsRss, searchGoogleWeb, getSearchStats, resetSearchStats } = require('./crawler/google');
 const { fetchArticle } = require('./crawler/article');
-const { classifyArticle, normalizeText, getClassifierConfig } = require('./utils/articleClassifier');
+const { createClassifier, normalizeText, getClassifierConfig } = require('./utils/articleClassifier');
 const { slugify } = require('./output/artifacts');
-const { DEFAULT_PUBLISHERS, buildSearchPlan } = require('./crawler/plan');
+const { buildSearchPlan } = require('./crawler/plan');
 const { runCrawl } = require('./crawler/run');
 const log = require('./output/logger');
 
@@ -40,7 +39,7 @@ function getDefaultDateRange(days = 7) {
 function parseArgs(args = process.argv.slice(2), env = process.env) {
   const values = {};
   const flags = new Set(['--headless', '--no-screenshots', '--screenshots', '--refresh', '--plan-only', '--rss-only', '--daily']);
-  const names = new Set(['date-from', 'date-to', 'brand', 'publishers', 'output', 'state', 'web-pages', 'days', 'dedupe-with']);
+  const names = new Set(['date-from', 'date-to', 'brand', 'publishers', 'output', 'state', 'web-pages', 'days', 'dedupe-with', 'profile']);
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
     if (flags.has(arg)) continue;
@@ -67,11 +66,12 @@ function parseArgs(args = process.argv.slice(2), env = process.env) {
     const sorted = [from, to].sort();
     dateRange = { from: sorted[0], to: sorted[1] };
   }
+  const profile = loadProfile(values.profile || env.PROFILE);
   const selected = values.brand || env.BRAND || '';
-  const brands = selected ? BRANDS.filter(def => [def.brand, ...(def.aliases || [])]
-    .some(alias => normalizeText(alias) === normalizeText(selected))) : BRANDS;
+  const brands = selected ? profile.brands.filter(def => [def.brand, ...(def.aliases || [])]
+    .some(alias => normalizeText(alias) === normalizeText(selected))) : profile.brands;
   if (!brands.length) throw new Error(`Unknown brand: ${selected}`);
-  const publishers = [...new Set((values.publishers || env.PUBLISHER_DOMAINS || DEFAULT_PUBLISHERS.join(','))
+  const publishers = [...new Set((values.publishers || env.PUBLISHER_DOMAINS || (profile.publishers || []).join(','))
     .split(',').map(domain => domain.trim().toLowerCase().replace(/^www\./, '')).filter(Boolean))];
   if (!publishers.length || publishers.some(domain => !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain))) {
     throw new Error('--publishers must be comma-separated publisher domains');
@@ -84,8 +84,10 @@ function parseArgs(args = process.argv.slice(2), env = process.env) {
   const root = path.resolve(PROJECT_ROOT, env.OUTPUT_DIR || 'output');
   const brandSlug = brands.length === 1 ? slugify(brands[0].brand) : 'all_brands';
   // Daily output is one cumulative file; historical output is per date range.
-  const stem = daily ? `daily_${brandSlug}`
-    : `${brandSlug}_${dateRange.from.replace(/-/g, '')}_${dateRange.to.replace(/-/g, '')}`;
+  // The profile prefix keeps different monitoring projects in separate files.
+  const prefix = profile.outputPrefix ?? profile.name;
+  const stem = [prefix && slugify(prefix), daily ? `daily_${brandSlug}`
+    : `${brandSlug}_${dateRange.from.replace(/-/g, '')}_${dateRange.to.replace(/-/g, '')}`].filter(Boolean).join('_');
   const outputPath = path.resolve(PROJECT_ROOT, values.output || path.join(root, `${stem}.csv`));
   const statePath = path.resolve(PROJECT_ROOT, values.state || `${outputPath}.state.jsonl`);
   if (outputPath === statePath) throw new Error('--output and --state must be different paths');
@@ -93,7 +95,7 @@ function parseArgs(args = process.argv.slice(2), env = process.env) {
     .map(file => path.resolve(PROJECT_ROOT, file.endsWith('.csv') ? `${file}.state.jsonl` : file));
   if (seedStatePaths.includes(statePath)) throw new Error('--dedupe-with must name a different checkpoint');
   return {
-    headless: true, dateRange, brands, publishers,
+    headless: true, profile, dateRange, brands, publishers,
     screenshots: !args.includes('--no-screenshots') && (args.includes('--screenshots') || env.SCREENSHOTS === 'true'),
     refresh: args.includes('--refresh'), planOnly: args.includes('--plan-only'),
     web: !daily && !args.includes('--rss-only'), daily, seedStatePaths,
@@ -132,12 +134,15 @@ function isPublishDateWithinRange(isoString, dateRange) {
 
 async function main() {
   const options = parseArgs();
+  const { profile } = options;
+  for (const warning of profileWarnings({ ...profile, brands: options.brands })) log.warn(warning);
   const plan = buildSearchPlan(options.brands, options.dateRange, options);
+  log.info(`Profile: ${profile.name}`);
   log.info(`Date range: ${describeDateRange(options.dateRange)} | brands: ${options.brands.map(def => def.brand).join(', ')}`);
   log.info(`Planned RSS queries: ${plan.filter(task => task.channel === 'rss').length}; complementary web queries: ${plan.filter(task => task.channel === 'web').length}`);
   log.info(`Screenshots: ${options.screenshots ? 'enabled' : 'disabled'} | ${options.refresh ? 'refresh searches' : 'resume unfinished work'}`);
   if (options.planOnly) {
-    console.log(JSON.stringify({ ...options, plan }, null, 2));
+    console.log(JSON.stringify({ ...options, profile: profile.name, plan }, null, 2));
     return;
   }
   let stopped = false;
@@ -147,22 +152,28 @@ async function main() {
   resetSearchStats();
   try {
     const config = getClassifierConfig();
+    const classifier = createClassifier(profile);
     const concurrency = Number(process.env.ARTICLE_CONCURRENCY || 3);
     if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 20) throw new Error('ARTICLE_CONCURRENCY must be 1..20');
     const result = await runCrawl({
-      ...options, plan, allBrands: BRANDS, concurrency,
+      ...options, plan, allBrands: profile.brands, industryLabel: profile.industryLabel, concurrency,
       searchDelayMin: Number(process.env.SEARCH_DELAY_MIN || 3000),
       searchDelayMax: Number(process.env.SEARCH_DELAY_MAX || 6000),
       rssDelayMin: Number(process.env.RSS_DELAY_MIN || 1000),
       rssDelayMax: Number(process.env.RSS_DELAY_MAX || 2000),
       withinRange: isPublishDateWithinRange, shouldStop: () => stopped,
     }, {
-      launchBrowser, closeBrowser, fetchArticle, classifyArticle,
+      launchBrowser, closeBrowser, fetchArticle,
+      classifyArticle: classifier.classifyArticle, findMentionedBrands: classifier.findMentionedBrands,
       searchRss: searchGoogleNewsRss, searchWeb: searchGoogleWeb, getSearchStats,
       classifierConfig: { version: 4, mode: config.mode, reviewFallback: config.reviewFallback, model: config.geminiModel },
     });
     log.summary(result.accepted_articles, result.unresolved_queries.length + result.unresolved_articles.length, options.outputPath);
     log.health(`Coverage: ${result.coverage_checks_complete ? 'planned checks finished' : 'INCOMPLETE'}; ${result.unresolved_queries.length} unfinished/limited queries; ${result.unresolved_articles.length} unverified articles; ${result.saturated_day_queries.length} saturated RSS day queries.`);
+    for (const group of result.noisy_queries) {
+      log.health(`WARN noisy query for ${group.brand} (${group.kind}): "${group.query}" — ${group.rejected} rejected, ` +
+        `${group.accepted} accepted. Narrow it in profile ${profile.name}.`);
+    }
     if (options.daily) {
       log.info(`Daily update: ${result.accepted_this_run} new articles; ${result.abandoned_articles.length} articles given up after ${options.maxAttempts} attempts.`);
     }

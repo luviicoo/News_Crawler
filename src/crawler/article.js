@@ -44,6 +44,24 @@ function isUsableArticleTitle(value) {
   return true;
 }
 
+// Without screenshots, images/video/fonts and ad networks only slow page loads
+// (and fill the shared browser context); title, body and dates are in the DOM.
+const HEAVY_RESOURCE_TYPES = new Set(['image', 'media', 'font']);
+const AD_HOSTS = /(^|\.)(doubleclick\.net|googlesyndication\.com|googleadservices\.com|adservice\.google\.[a-z.]+|amazon-adsystem\.com|mgid\.com|adtimaserver\.vn|adtima\.vn|admicro\.vn|eclick\.vn|taboola\.com|outbrain\.com|criteo\.(?:com|net)|pubmatic\.com|adnxs\.com|rubiconproject\.com|teads\.tv|yomedia\.vn)$/i;
+
+function shouldBlockRequest(request) {
+  if (HEAVY_RESOURCE_TYPES.has(request.resourceType())) return true;
+  try {
+    return AD_HOSTS.test(new URL(request.url()).hostname);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function blockHeavyResources(page) {
+  await page.route('**/*', route => (shouldBlockRequest(route.request()) ? route.abort() : route.continue()));
+}
+
 function isGoogleNewsWrapperUrl(url) {
   return /^https?:\/\/news\.google\.com\/(?:rss\/)?articles\//i.test(String(url || ''));
 }
@@ -229,6 +247,7 @@ async function fetchArticle(url, {
     try {
       page = await newArticlePage();
       page.setDefaultTimeout(PAGE_TIMEOUT);
+      if (!screenshotDir) await blockHeavyResources(page);
       let navigationResponse;
       page.on('response', response => {
         if (response.request().isNavigationRequest() && response.frame() === page.mainFrame()) navigationResponse = response;
@@ -343,4 +362,4 @@ async function fetchArticle(url, {
   };
 }
 
-module.exports = { fetchArticle, extractArticleContent };
+module.exports = { fetchArticle, extractArticleContent, shouldBlockRequest };

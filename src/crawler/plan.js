@@ -2,12 +2,10 @@
 
 const { createHash } = require('crypto');
 
-const DEFAULT_PUBLISHERS = [
-  'vnexpress.net', 'tuoitre.vn', 'thanhnien.vn', 'dantri.com.vn', 'vietnamnet.vn',
-  'tinnhanhchungkhoan.vn', 'baodautu.vn', 'cafef.vn', 'plo.vn', 'sggp.org.vn',
-  'vneconomy.vn', 'nhandan.vn', 'bnews.vn', 'thoibaotaichinhvietnam.vn',
-  'baotintuc.vn', 'laodong.vn',
-];
+const { loadProfile } = require('../config/profile');
+
+// Publisher lists belong to the profile; this default keeps old callers working.
+const DEFAULT_PUBLISHERS = loadProfile().publishers || [];
 
 function windows(range, period) {
   const result = [];
