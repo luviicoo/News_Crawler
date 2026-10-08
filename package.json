@@ -11,7 +11,8 @@
     "start": "node src/index.js",
     "start:headless": "node src/index.js --headless",
     "capture:pr-images": "node src/capture_pr_images.js",
-    "test": "node --test"
+    "test": "node --test",
+    "postinstall": "node scripts/patch-playwright-extra.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

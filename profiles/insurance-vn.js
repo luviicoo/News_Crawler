@@ -39,6 +39,20 @@ module.exports = {
     'tinnhanhchungkhoan.vn', 'baodautu.vn', 'cafef.vn', 'plo.vn', 'sggp.org.vn',
     'vneconomy.vn', 'nhandan.vn', 'bnews.vn', 'thoibaotaichinhvietnam.vn',
     'baotintuc.vn', 'laodong.vn',
+    // Báo xuất hiện trong output (file Prudential đã rà + daily). site: đã
+    // gồm subdomain (news.laodong.vn, etime.danviet.vn, dttc.sggp.org.vn...).
+    'znews.vn', 'kenh14.vn', 'cafebiz.vn', '24h.com.vn', 'afamily.vn', 'danviet.vn',
+    'congan.com.vn', 'hanoimoi.vn', 'daibieunhandan.vn', 'baoquocte.vn', 'thanhtra.com.vn',
+    'phunuvietnam.vn', 'nguoihanoi.vn', 'nguoidothi.net.vn',
+    'vietnamfinance.vn', 'tapchikinhtetaichinh.vn', 'taichinhdoanhnghiep.net.vn',
+    'theleader.vn', 'nguoiquansat.vn', 'nhipcaudautu.vn', 'vietstock.vn', 'vietnambiz.vn',
+    'nhadautu.vn', 'diendandoanhnghiep.vn', 'thuonghieucongluan.com.vn',
+    'doanhnghiepthuonghieu.vn', 'vietnambusinessinsider.vn', 'forbes.vn', 'tapchicongthuong.vn',
+    'brandsvietnam.com', 'advertisingvietnam.com', 'vietcetera.com', 'vietnamreport.net',
+    'baonghean.vn', 'baodongthap.vn', 'baothanhhoa.vn', 'baocamau.vn', 'baodanang.vn', 'voh.com.vn',
+    // Báo lớn toàn quốc chưa có trong output.
+    'nld.com.vn', 'tienphong.vn', 'vietnamplus.vn', 'vov.vn', 'vtv.vn', 'baochinhphu.vn',
+    'kinhtedothi.vn', 'tapchitaichinh.vn', 'baophapluat.vn',
   ],
 
   topic: {

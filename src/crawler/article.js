@@ -46,20 +46,30 @@ function isUsableArticleTitle(value) {
 
 // Without screenshots, images/video/fonts and ad networks only slow page loads
 // (and fill the shared browser context); title, body and dates are in the DOM.
-const HEAVY_RESOURCE_TYPES = new Set(['image', 'media', 'font']);
-const AD_HOSTS = /(^|\.)(doubleclick\.net|googlesyndication\.com|googleadservices\.com|adservice\.google\.[a-z.]+|amazon-adsystem\.com|mgid\.com|adtimaserver\.vn|adtima\.vn|admicro\.vn|eclick\.vn|taboola\.com|outbrain\.com|criteo\.(?:com|net)|pubmatic\.com|adnxs\.com|rubiconproject\.com|teads\.tv|yomedia\.vn)$/i;
+const HEAVY_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico', 'bmp',
+  'mp4', 'webm', 'm3u8', 'mp3', 'woff', 'woff2', 'ttf', 'otf', 'eot'];
+const AD_DOMAINS = ['doubleclick.net', 'googlesyndication.com', 'googleadservices.com', 'adservice.google.com',
+  'adservice.google.com.vn', 'amazon-adsystem.com', 'mgid.com', 'adtimaserver.vn', 'adtima.vn', 'admicro.vn',
+  'eclick.vn', 'taboola.com', 'outbrain.com', 'criteo.com', 'criteo.net', 'pubmatic.com', 'adnxs.com',
+  'rubiconproject.com', 'teads.tv', 'yomedia.vn'];
+// Chromium Network.setBlockedURLs patterns ("*" is the only wildcard).
+const BLOCKED_URL_PATTERNS = [
+  ...HEAVY_EXTENSIONS.flatMap(ext => [`*.${ext}`, `*.${ext}?*`]),
+  ...AD_DOMAINS.flatMap(domain => [`*://${domain}/*`, `*://*.${domain}/*`]),
+];
 
-function shouldBlockRequest(request) {
-  if (HEAVY_RESOURCE_TYPES.has(request.resourceType())) return true;
-  try {
-    return AD_HOSTS.test(new URL(request.url()).hostname);
-  } catch (_) {
-    return false;
-  }
+function shouldBlockRequest(url) {
+  const toRegex = pattern => new RegExp(`^${pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`, 'i');
+  return BLOCKED_URL_PATTERNS.some(pattern => toRegex(pattern).test(url));
 }
 
+// Blocked in the browser itself instead of with page.route(): Playwright keeps
+// every route still pending when its page closes (and so the whole page, its
+// frames and requests) in the context forever, which ran a long crawl out of memory.
 async function blockHeavyResources(page) {
-  await page.route('**/*', route => (shouldBlockRequest(route.request()) ? route.abort() : route.continue()));
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.enable');
+  await cdp.send('Network.setBlockedURLs', { urls: BLOCKED_URL_PATTERNS });
 }
 
 function isGoogleNewsWrapperUrl(url) {
@@ -362,4 +372,4 @@ async function fetchArticle(url, {
   };
 }
 
-module.exports = { fetchArticle, extractArticleContent, shouldBlockRequest };
+module.exports = { fetchArticle, extractArticleContent, shouldBlockRequest, blockHeavyResources };

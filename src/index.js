@@ -100,7 +100,7 @@ function parseArgs(args = process.argv.slice(2), env = process.env) {
     refresh: args.includes('--refresh'), planOnly: args.includes('--plan-only'),
     web: !daily && !args.includes('--rss-only'), daily, seedStatePaths,
     maxAttempts: Number(env.ARTICLE_MAX_ATTEMPTS || 3),
-    webMaxPages, outputPath, statePath, reportPath: `${outputPath}.coverage.json`,
+    webMaxPages, outputPath, statePath,
     screenshotDir: path.join(root, 'screenshots'),
   };
 }
@@ -161,6 +161,7 @@ async function main() {
       searchDelayMax: Number(process.env.SEARCH_DELAY_MAX || 6000),
       rssDelayMin: Number(process.env.RSS_DELAY_MIN || 1000),
       rssDelayMax: Number(process.env.RSS_DELAY_MAX || 2000),
+      browserRecycleArticles: Number(process.env.BROWSER_RECYCLE_ARTICLES ?? 300),
       withinRange: isPublishDateWithinRange, shouldStop: () => stopped,
     }, {
       launchBrowser, closeBrowser, fetchArticle,
@@ -177,7 +178,6 @@ async function main() {
     if (options.daily) {
       log.info(`Daily update: ${result.accepted_this_run} new articles; ${result.abandoned_articles.length} articles given up after ${options.maxAttempts} attempts.`);
     }
-    log.info(`Coverage report: ${options.reportPath}`);
     if (!result.coverage_checks_complete) process.exitCode = 2;
     if (stopped) process.exitCode = 130;
   } finally {

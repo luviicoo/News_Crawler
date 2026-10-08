@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { BRANDS } = require('../src/config/brands');
-const { windows, buildSearchPlan } = require('../src/crawler/plan');
+const { DEFAULT_PUBLISHERS, windows, buildSearchPlan } = require('../src/crawler/plan');
 const { openState } = require('../src/crawler/state');
 const { runCrawl } = require('../src/crawler/run');
 const { classifyArticle, findMentionedBrands } = require('../src/utils/articleClassifier');
@@ -38,8 +38,8 @@ test('coverage plan includes partial/leap months and publisher/year searches ind
   ]);
   const plan = buildSearchPlan([prudential], { from: '2018-01-01', to: '2026-09-30' });
   assert.equal(plan.filter(task => task.kind === 'monthly' && task.channel === 'rss').length, 105 * prudential.queries.length);
-  assert.equal(plan.filter(task => task.kind === 'publisher-year' && task.channel === 'rss').length, 144);
-  assert.equal(plan.filter(task => task.channel === 'web').length, 249);
+  assert.equal(plan.filter(task => task.kind === 'publisher-year' && task.channel === 'rss').length, 9 * DEFAULT_PUBLISHERS.length);
+  assert.equal(plan.filter(task => task.channel === 'web').length, 105 + 9 * DEFAULT_PUBLISHERS.length);
   assert.equal(new Set(plan.map(task => task.id)).size, plan.length);
   assert.deepEqual(buildSearchPlan([prudential], range), buildSearchPlan([prudential], range));
 });
@@ -312,4 +312,30 @@ test('publisher searches use a quoted brand phrase when the first query is made 
   const plan = buildSearchPlan([baoViet, prudential], range, { publishers: ['laodong.vn'], web: false });
   const site = plan.filter(task => task.kind === 'publisher-year').map(task => task.query);
   assert.deepEqual(site, ['"Bao Viet Nhan Tho" site:laodong.vn', '"Prudential" site:laodong.vn']);
+});
+
+test('browser is restarted between article batches, never while a tab or search uses it', async t => {
+  const options = { ...setup(t), concurrency: 1, browserRecycleArticles: 2 };
+  options.plan = options.plan.filter(task => task.channel === 'rss').slice(0, 2);
+  let open = false;
+  let launches = 0;
+  const deps = {
+    launchBrowser: async () => { open = true; launches++; },
+    closeBrowser: async () => { open = false; },
+    classifyArticle: classify,
+    searchRss: async (query) => {
+      assert.ok(open, 'search ran on a closed browser');
+      // Deterministic, distinct cards per query.
+      return Array.from({ length: 6 }, (_, i) => card(`${query.length}-${i}`));
+    },
+    searchWeb: async () => ({ cards: [], truncated: false }),
+    fetchArticle: async url => {
+      assert.ok(open, 'article opened on a closed browser');
+      return article(url);
+    },
+  };
+  const result = await runCrawl(options, deps);
+  assert.ok(result.accepted_articles > 0);
+  assert.ok(launches >= 2, `expected the browser to restart, launched ${launches} time(s)`);
+  assert.equal(open, false);
 });

@@ -40,7 +40,7 @@ npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 
 
 Mặc định lấy 7 ngày tính cả hôm nay theo giờ Việt Nam (UTC+7). Có thể đặt `DATE_FROM` và `DATE_TO` trong `.env`; tham số dòng lệnh được ưu tiên. Cung cấp cả hai ngày theo định dạng `YYYY-MM-DD`. Nếu nhập thiếu hoặc sai ngày, chương trình báo lỗi; nếu ngày đầu lớn hơn ngày cuối, chương trình tự đổi thứ tự.
 
-Brand, ngành, báo và mọi rule nhận diện nằm trong **profile** (`profiles/*.js`), không nằm trong code. Profile mặc định `insurance-vn` gồm Sun Life, Chubb Life, FWD, Dai-ichi Life, AIA, Bảo Việt Nhân Thọ, Prudential, Manulife và Generali. Chọn profile khác bằng `--profile <tên>` hoặc `PROFILE`. Xem [Tạo profile cho ngành/brand mới](#tạo-profile-cho-ngànhbrand-mới).
+Brand, ngành, báo và mọi rule nhận diện nằm trong **profile** (`profiles/*.js`), không nằm trong code. Profile mặc định `insurance-vn` gồm Sun Life, Chubb Life, FWD, Dai-ichi Life, AIA, Bảo Việt Nhân Thọ, Prudential, Manulife và Generali. Profile `dairy-kids-vn` (ngành sữa trẻ em) gồm Milo, Vinamilk, TH true MILK, LOF (Kun), Nutifood, FrieslandCampina (Cô Gái Hà Lan, Ovaltine, Friso), Abbott, Nestlé NAN, Mead Johnson, Nutricare và Vitadairy. Chọn profile khác bằng `--profile <tên>` hoặc `PROFILE`. Xem [Tạo profile cho ngành/brand mới](#tạo-profile-cho-ngànhbrand-mới).
 
 ## Luồng xử lý
 
@@ -49,13 +49,13 @@ Trình duyệt tìm kiếm dự phòng, tải bài và chụp ảnh đều chạ
 RSS ở đây là **RSS tìm kiếm của Google News**, không phải RSS riêng của từng báo. Mỗi truy vấn tạo một URL `https://news.google.com/rss/search?q=...&hl=vi&gl=VN&ceid=VN:vi`. Ví dụ tháng 01/2018: `"Prudential" after:2017-12-31 before:2018-02-01`; thêm `site:vnexpress.net` để tìm trong một báo. Khoảng ngày cuối cùng vẫn được kiểm tra theo ngày đăng thật của bài ở UTC+7.
 
 1. Lập toàn bộ kế hoạch trước khi tìm: từng từ khóa cho cả khoảng ngày và từng tháng; thêm từ khóa thương hiệu + `site:` cho từng báo, từng năm. Danh sách báo lấy từ `publishers` của profile, thay tạm được bằng `--publishers` hoặc `PUBLISHER_DOMAINS`.
-2. Chạy các truy vấn RSS. Tìm theo tháng/báo luôn được thực hiện, kể cả RSS trả ít hơn 100 kết quả. Feed từ 100 bài được chia đôi tiếp xuống một ngày, giữ cả kết quả của cửa sổ cha và con. Truy vấn RSS (kể cả truy vấn con khi chia đôi) nghỉ `RSS_DELAY_*`, ngắn hơn Web; bài của truy vấn trước được đọc song song khi RSS tìm tiếp. Truy vấn theo báo dùng `siteQuery` có ngoặc kép nếu hãng khai báo (Bảo Việt: không có ngoặc kép, mỗi báo trả hàng nghìn bài không liên quan). Ngày vẫn chạm giới hạn được ghi trong báo cáo độ phủ.
+2. Chạy các truy vấn RSS. Tìm theo tháng/báo luôn được thực hiện, kể cả RSS trả ít hơn 100 kết quả. Feed từ 100 bài được chia đôi tiếp xuống một ngày, giữ cả kết quả của cửa sổ cha và con. Truy vấn RSS (kể cả truy vấn con khi chia đôi) nghỉ `RSS_DELAY_*`, ngắn hơn Web; bài của truy vấn trước được đọc song song khi RSS tìm tiếp. Truy vấn theo báo dùng `siteQuery` có ngoặc kép nếu hãng khai báo (Bảo Việt: không có ngoặc kép, mỗi báo trả hàng nghìn bài không liên quan). Số ngày vẫn chạm giới hạn được báo trong log `[HEALTH]`.
 3. Chạy **Google Web** bổ sung theo tháng và báo/năm dù RSS đã có bài. Trình duyệt chạy ẩn; chỉ CAPTCHA mới mở cửa sổ xác thực. Web phân trang tối đa `WEB_MAX_PAGES`; chạm giới hạn, bị chặn hoặc không đọc được giao diện được ghi là chưa hoàn tất.
 4. Lưu các URL tìm được vào tiến độ trước khi đánh dấu truy vấn xong. Mở bài, giải chuyển hướng, đọc tiêu đề, thân bài, ngày đăng và liên kết định danh. Không loại bài chỉ vì tiêu đề chưa nhắc thương hiệu. Một URL được hãng khác tìm thấy lại không bị mở lần nữa: kết quả lần đọc trước (hãng có trong bài, ngoài khoảng ngày, không phải bài báo) được dùng lại.
 5. Phân loại bằng tiêu đề **và thân bài**. Ưu tiên vùng nội dung của báo, bỏ sidebar/tin liên quan. Bài nhắc từ 2 hãng trở lên (trong tiêu đề/thân bài) được ghi **một lần** với `brand = Ngành bảo hiểm`, danh sách hãng nằm ở cột `mentioned_brands`; không lặp lại cho từng hãng. Prudential Financial/plc, Manulife Financial, Bảo hiểm Bảo Việt... không được tính là nhắc hãng. Loại Prudential Finance, Prudential Financial và tên tòa nhà nhầm với Prudential Việt Nam. Phạm vi là các bài nhắc hãng, gồm tin ngành/CSR/khiếu nại, không chỉ thông cáo tích cực.
 6. Loại trùng theo từng hãng (bài ngành dùng chung một phạm vi, nên tìm lại qua hãng khác vẫn tính là trùng) bằng URL chuẩn hóa, AMP/mobile/ngôn ngữ, hreflang và canonical cùng tiêu đề. Lưu cả liên kết định danh để khôi phục bộ chống trùng khi chạy tiếp. Một bài đăng ở hai báo vẫn tính là hai lần xuất hiện.
 7. Lưu bài hợp lệ vào nhật ký tiến độ trước khi ghi CSV. Mặc định không chụp ảnh; muốn chụp dùng `--screenshots` hoặc `SCREENSHOTS=true`.
-8. Cập nhật báo cáo `.coverage.json`: toàn bộ truy vấn, trạng thái, số bài mỗi năm, ngày RSS chạm giới hạn và các URL chưa đọc/xác minh ngày được. Không đổi CAPTCHA/lỗi tải thành “0 bài, đã xong”.
+8. In tình trạng độ phủ ra log `[HEALTH]`: số truy vấn chưa xong/chạm giới hạn, bài chưa xác minh và ngày RSS chạm giới hạn. Không đổi CAPTCHA/lỗi tải thành “0 bài, đã xong”. Tool không xuất file báo cáo riêng.
 
 Với Prudential từ 2018 đến 30/09/2026, kế hoạch mặc định gồm **568 truy vấn RSS và 249 truy vấn Web**; RSS có thể phát sinh thêm truy vấn con khi chạm giới hạn. RSS và Web đều phụ thuộc bài được Google lập chỉ mục, nên hoàn tất kế hoạch không chứng minh đã có mọi bài từng được xuất bản.
 
@@ -75,7 +75,7 @@ npm.cmd start -- --brand Prudential --daily --days 2 --dedupe-with output/pruden
 - CSV và checkpoint là **một bộ cố định** (`daily_<hãng>.csv`), mỗi ngày chỉ thêm bài mới; cửa sổ ngày chồng lên nhau không tạo dòng trùng và không đọc lại bài đã xử lý.
 - `--dedupe-with` (hoặc `DEDUPE_WITH`) nhận CSV hoặc `.state.jsonl` của lần kéo lịch sử, phân cách bằng dấu phẩy, để không thêm lại bài đã có.
 - Trang tải được, có tiêu đề nhưng không có thân bài (trang danh mục, hồ sơ, thông số xe…) được xếp `not-article` ngay; chế độ lịch sử vẫn thử lại các trang này.
-- Bài lỗi được thử lại tối đa `ARTICLE_MAX_ATTEMPTS` lần (mặc định 3) qua các ngày, sau đó ghi vào `abandoned_articles` trong báo cáo độ phủ. Mã thoát `0` khi mọi truy vấn và bài trong lượt đã xử lý xong.
+- Bài lỗi được thử lại tối đa `ARTICLE_MAX_ATTEMPTS` lần (mặc định 3) qua các ngày, sau đó bỏ qua; log cuối lượt báo số bài đã bỏ. Mã thoát `0` khi mọi truy vấn và bài trong lượt đã xử lý xong.
 
 ## Chạy tiếp và kiểm tra độ phủ
 
@@ -94,7 +94,7 @@ npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 
 
 `--output <file.csv>` chọn CSV và mặc định checkpoint `<file.csv>.state.jsonl`; `--state <file.jsonl>` chọn checkpoint riêng. Đổi hãng/khoảng ngày/danh sách báo/chế độ phân loại phải dùng bộ file khác để không nhầm tiến độ giữa các kế hoạch. Muốn kéo mới từ đầu, chọn tên `--output` mới. `--rss-only` bỏ bước Web và báo độ phủ chưa đầy đủ, cần bộ file khác nếu đã có checkpoint của kế hoạch đầy đủ.
 
-`coverage_checks_complete=true` nghĩa là kế hoạch có bước Web, mọi truy vấn/bài đã xử lý và không còn giới hạn được phát hiện. `processing_complete` chỉ nói việc xử lý kế hoạch đã xong. Mã thoát `2` báo còn thiếu bước độ phủ hoặc còn ca chưa xác minh; `130` là đã dừng theo yêu cầu. URL chưa lấy được ngày vẫn nằm trong báo cáo để kiểm tra, không tự gán ngày.
+Mã thoát `2` báo còn thiếu bước độ phủ hoặc còn ca chưa xác minh; `130` là đã dừng theo yêu cầu. URL chưa lấy được ngày vẫn nằm trong checkpoint để chạy lại, không tự gán ngày.
 
 ## Cấu hình
 
@@ -117,6 +117,7 @@ npm.cmd start -- --brand Prudential --date-from 2018-01-01 --date-to 2026-09-30 
 | `DAILY_DAYS` | `3` | Số ngày gần nhất cho `--daily`; CLI `--days` ưu tiên |
 | `DEDUPE_WITH` | Trống | Checkpoint/CSV lịch sử để chống trùng khi chạy `--daily` |
 | `ARTICLE_MAX_ATTEMPTS` | `3` | Số lần thử một bài lỗi ở chế độ `--daily` trước khi bỏ qua |
+| `BROWSER_RECYCLE_ARTICLES` | `300` | Khởi động lại trình duyệt sau mỗi N bài để giải phóng bộ nhớ khi chạy dài; `0` để tắt |
 | `ARTICLE_DELAY_MIN`, `ARTICLE_DELAY_MAX` | `500`, `1500` | Khoảng nghỉ tải bài, mili giây |
 | `CAPTCHA_PAUSE_MS` | `120000` | Thời gian chờ xác thực trong cửa sổ riêng; đặt `0` để bỏ qua xác thực thủ công |
 | `CAPTCHA_MAX_PER_RUN` | `2` | Số CAPTCHA không giải được trước khi tắt tìm bằng trình duyệt cho phần còn lại của run (RSS vẫn chạy) |
@@ -144,11 +145,11 @@ Mỗi dự án theo dõi (một ngành hoặc một nhóm brand) là một file 
 4. Kiểm tra trước khi chạy: `npm start -- --profile <ten> --daily --plan-only`. Profile sai trường sẽ báo lỗi kèm tên brand. Truy vấn `site:` không có ngoặc kép sẽ bị cảnh báo vì dễ kéo về hàng trăm bài không liên quan.
 5. Chạy: `npm start -- --profile <ten> --daily`. Output tách riêng theo `outputPrefix` (mặc định là tên profile).
 
-Sau mỗi lượt chạy, `.coverage.json` có `query_precision` (số bài tìm được, nhận và loại của từng truy vấn) và `noisy_queries` (từ 20 bài bị loại trở lên, tỷ lệ nhận dưới 5%). Log `[HEALTH] WARN noisy query` chỉ ra truy vấn cần thu hẹp trong profile.
+Sau mỗi lượt chạy, log `[HEALTH] WARN noisy query` chỉ ra truy vấn cần thu hẹp trong profile (từ 20 bài bị loại trở lên, tỷ lệ nhận dưới 5%).
 
 ## Đầu ra
 
-CSV dùng UTF-8 có BOM. Tên mặc định theo hãng/khoảng ngày, ví dụ `output/prudential_viet_nam_20180101_20260930.csv`, kèm `.state.jsonl` và `.coverage.json`. Bộ CSV Prudential đã rà trước đây (`prudential_pr_20180101_20260930_reviewed.csv`) được giữ riêng; không tự nhập nó vào checkpoint mới.
+CSV dùng UTF-8 có BOM. Tên mặc định theo hãng/khoảng ngày, ví dụ `output/prudential_viet_nam_20180101_20260930.csv`, kèm checkpoint `.state.jsonl`. Bộ CSV Prudential đã rà trước đây (`prudential_pr_20180101_20260930_reviewed.csv`) được giữ riêng; không tự nhập nó vào checkpoint mới.
 
 | Cột | Nội dung |
 | --- | --- |
@@ -191,6 +192,7 @@ Script chạy ẩn, chỉ mở cửa sổ khi gặp CAPTCHA cần xác thực. �
 ```text
 profiles/
   insurance-vn.js             Profile mặc định: brand bảo hiểm, báo, rule nhận diện
+  dairy-kids-vn.js            Profile ngành sữa trẻ em
   _template.js                Profile mẫu có chú thích từng trường
 src/
   index.js                    Điều phối crawler, lọc ngày
@@ -234,7 +236,7 @@ Tool đã làm được gì, chưa làm được gì và lý do: xem [STATUS.md]
 
 | Thành phần | Cách xử lý |
 | --- | --- |
-| `output/` | CSV, báo cáo và ảnh từ các lần chạy; được lưu trong Git để chia sẻ và theo dõi lịch sử |
+| `output/` | CSV, checkpoint và ảnh từ các lần chạy; được lưu trong Git để chia sẻ và theo dõi lịch sử |
 | `logs/` | Log các lần chạy; được lưu trong Git để đối chiếu kết quả |
 | `.google-state.json` | Cookies/localStorage; xóa sẽ đặt lại phiên Google |
 | `node_modules/` | Thư viện đang dùng; chỉ xóa khi muốn cài lại bằng `npm.cmd ci` |

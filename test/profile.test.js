@@ -126,9 +126,36 @@ test('browser keeps only Google session state, matches its real version and drop
   assert.deepEqual(state.cookies.map(cookie => cookie.domain), ['.google.com', 'news.google.com', '.google.com.vn']);
   assert.deepEqual(state.origins.map(entry => entry.origin), ['https://www.google.com']);
   assert.match(buildUserAgent('141.0.7390.37', 'darwin'), /Macintosh.*Chrome\/141\.0\.0\.0/);
-  const request = (resourceType, url) => ({ resourceType: () => resourceType, url: () => url });
-  assert.equal(shouldBlockRequest(request('image', 'https://vnexpress.net/a.jpg')), true);
-  assert.equal(shouldBlockRequest(request('script', 'https://servicer.mgid.com/x.js')), true);
-  assert.equal(shouldBlockRequest(request('document', 'https://vnexpress.net/bai-viet.html')), false);
-  assert.equal(shouldBlockRequest(request('script', 'https://vnexpress.net/app.js')), false);
+  assert.equal(shouldBlockRequest('https://vnexpress.net/a.jpg'), true);
+  assert.equal(shouldBlockRequest('https://i1.vnecdn.net/a.webp?w=680'), true);
+  assert.equal(shouldBlockRequest('https://servicer.mgid.com/x.js'), true);
+  assert.equal(shouldBlockRequest('https://mgid.com/x.js'), true);
+  assert.equal(shouldBlockRequest('https://vnexpress.net/bai-viet.html'), false);
+  assert.equal(shouldBlockRequest('https://vnexpress.net/app.js'), false);
+});
+
+test('dairy-kids-vn profile separates brands from lookalike names', async () => {
+  const dairy = loadProfile('dairy-kids-vn');
+  assert.deepEqual(profileWarnings(dairy), []);
+  const classifier = createClassifier(dairy);
+  const mentioned = (title, content = '') => classifier.findMentionedBrands({ title, content }, dairy.brands);
+  assert.deepEqual(mentioned('Nestlé MILO tài trợ giải bóng đá học đường'), ['Milo']);
+  assert.deepEqual(mentioned('Tổng thống Milo Đukanović thăm Việt Nam'), []);
+  assert.deepEqual(mentioned('Kun Agüero ghi bàn'), []);
+  assert.deepEqual(mentioned('IDP tổ chức hội thảo du học'), []);
+  assert.deepEqual(mentioned('Sữa Kun của LOF ra mắt bao bì mới'), ['LOF (Kun)']);
+  assert.deepEqual(mentioned('Tai nạn giao thông trên quốc lộ', 'NẠN NHÂN được cấp cứu'), []);
+  assert.deepEqual(mentioned('Nestlé NAN Optipro mới'), ['Nestle NAN']);
+  assert.deepEqual(mentioned('Thí sinh sửa bài thi', 'th true là cụm tiếng Anh'), []);
+  assert.deepEqual(mentioned('Bac A Bank tăng vốn', 'Tập đoàn TH góp vốn Bac A Bank'), ['TH true MILK']);
+  assert.deepEqual(mentioned('Abbott Laboratories ra mắt kit xét nghiệm Abbott'), []);
+  assert.deepEqual(mentioned('Vinamilk và TH true MILK tăng giá sữa tươi'), ['Vinamilk', 'TH true MILK']);
+  assert.deepEqual(mentioned('Ovaltine và Cô Gái Hà Lan khuyến mãi'), ['FrieslandCampina Viet Nam']);
+
+  const env = { CLASSIFIER_MODE: 'rules' };
+  const vinamilk = dairy.brands.find(def => def.brand === 'Vinamilk');
+  const stock = await classifier.classifyArticle({ title: 'Cổ phiếu VNM giảm sàn', content: 'Vinamilk' }, vinamilk, dairy.brands, env);
+  assert.equal(stock.decision, 'reject');
+  const earnings = await classifier.classifyArticle({ title: 'Vinamilk báo lợi nhuận tăng, cổ phiếu khởi sắc', content: 'Vinamilk bán sữa bột trẻ em.' }, vinamilk, dairy.brands, env);
+  assert.equal(earnings.decision, 'accept');
 });

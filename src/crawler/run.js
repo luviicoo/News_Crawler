@@ -13,7 +13,7 @@ const { INDUSTRY_LABEL } = require('../config/brands');
 const log = require('../output/logger');
 
 const RETRYABLE = new Set(['pending', 'failed', 'date-unverified', 'content-unverified']);
-const BLOCKED = new Set(['facebook.com', 'arabsvoice.net', 'tin.skydoor.net', 'twaslnews.com']);
+const BLOCKED = new Set(['facebook.com', 'arabsvoice.net', 'tin.skydoor.net', 'twaslnews.com', 'pvoil.com.vn']);
 const isBlocked = url => BLOCKED.has(extractHostname(url).replace(/^m\./, ''));
 const isListing = url => isHomepageUrl(url) || /\/(?:tags?|authors?|search|tim-kiem)(?:\/|\?|$)|\.pdf(?:\?|$)/i.test(url);
 // A search whose hits are at least this many rejected articles and almost
@@ -28,7 +28,7 @@ async function runCrawl(options, deps) {
     screenshots = false, screenshotDir = '', concurrency = 3, refresh = false,
     webMaxPages = 5, searchDelayMin = 3000, searchDelayMax = 6000, rssDelayMin = 1000, rssDelayMax = 2000,
     daily = false, maxAttempts = 3, seedStatePaths = [], industryLabel = INDUSTRY_LABEL,
-    withinRange, shouldStop = () => false } = options;
+    browserRecycleArticles = 300, withinRange, shouldStop = () => false } = options;
   const findMentionedBrands = deps.findMentionedBrands || defaultClassifier.findMentionedBrands;
   // A daily checkpoint accumulates across days, so its identity excludes the
   // moving date window and plan; a historical checkpoint is tied to both.
@@ -46,6 +46,22 @@ async function runCrawl(options, deps) {
   const limit = pLimit(concurrency);
   const processedThisRun = new Set();
   let acceptedThisRun = 0;
+  // Playwright never frees CDP sessions of iframes/workers whose tab already
+  // closed, so a long crawl grows until it runs out of memory. Restarting the
+  // browser every N articles releases them; the Google session is saved/reloaded.
+  let fetchedSinceLaunch = 0;
+  let searching = false;
+  let recycling = null;
+  async function recycleBrowserIfDue() {
+    if (!launched || !browserRecycleArticles || fetchedSinceLaunch < browserRecycleArticles || searching || recycling) return;
+    log.info(`Restarting browser after ${fetchedSinceLaunch} articles to release memory.`);
+    recycling = (async () => {
+      await deps.closeBrowser();
+      await deps.launchBrowser({ headless: true, managedSignals: true });
+      fetchedSinceLaunch = 0;
+    })();
+    try { await recycling; } finally { recycling = null; }
+  }
   // Candidate ids by search URL, so another brand's search hit for an article
   // already read can be decided without opening it again.
   const byUrl = new Map();
@@ -146,7 +162,7 @@ async function runCrawl(options, deps) {
       queries: plan.map(task => ({ ...task, ...(state.queries.get(task.id) || { status: 'pending' }) })),
       limitation: 'Search indexes are not a complete publisher archive. Finished plans do not prove every published article was indexed. Web date filters are approximate; article dates are checked separately.',
     };
-    atomicJson(reportPath, value);
+    if (reportPath) atomicJson(reportPath, value);
     return value;
   }
 
@@ -214,6 +230,7 @@ async function runCrawl(options, deps) {
       } });
     }
     let result;
+    fetchedSinceLaunch++;
     try {
       result = await deps.fetchArticle(card.url, {
         brand: card.brand, publisherDomain: card.publisherDomain, rssPublishDate: card.rssPublishDate,
@@ -252,6 +269,8 @@ async function runCrawl(options, deps) {
       const failed = results.find(result => result.status === 'rejected');
       if (failed) throw failed.reason;
       report();
+      // Between batches no article tab is open; an in-flight search defers it.
+      await recycleBrowserIfDue();
     }
   }
 
@@ -303,8 +322,10 @@ async function runCrawl(options, deps) {
       if (task.channel === 'web') await settleDrains();
       await (task.channel === 'rss' ? pause(rssDelayMin, rssDelayMax) : pause(searchDelayMin, searchDelayMax));
       if (shouldStop()) break;
+      if (recycling) await recycling;
       let response;
       const statsBefore = deps.getSearchStats?.().saturatedDayQueries?.length || 0;
+      searching = true;
       try {
         response = task.channel === 'rss'
           ? await deps.searchRss(task.query, task.dateRange, { shouldStop, pause: () => pause(rssDelayMin, rssDelayMax) })
@@ -315,6 +336,8 @@ async function runCrawl(options, deps) {
         report();
         log.warn(`[COVERAGE] ${task.query}: ${err.message}`);
         continue;
+      } finally {
+        searching = false;
       }
       const cards = (Array.isArray(response) ? response : response.cards).map(card => ({
         ...card, brand: task.brand,
