@@ -1,20 +1,24 @@
 'use strict';
 
 /**
- * Article page scraper.
+ * Article page reader.
  *
- * Mở từng URL bài báo trong tab mới, lấy final URL sau redirect,
- * trích xuất publish_date, và chụp màn hình 800×800 px.
- *
- * Concurrency được kiểm soát ở index.js qua p-limit.
+ * Trích xuất dùng chung cho trang Playwright và trang HTML tĩnh (httpFetch.js
+ * bọc linkedom thành page có evaluate/$eval/$$eval): tiêu đề, thân bài, ngày
+ * đăng, liên kết định danh, tác giả, chuyên mục, tag, sapo, dấu hiệu PR.
+ * fetchArticle() là nhánh trình duyệt, dùng khi tải HTTP không đủ.
  */
 
 const { newArticlePage, closeArticlePage, verifyInPopup } = require('./browser');
 const { isCaptchaPage } = require('./captcha');
 const { extractPublishDate } = require('../parser/dateParser');
 const { resolveGoogleRedirect } = require('../parser/urlParser');
-const { captureArticleScreenshot } = require('../output/artifacts');
+const { cleanVietnameseText } = require('../parser/vnText');
+const { detectPrSignals, extractSourceCredit } = require('../parser/articleSignals');
 const log = require('../output/logger');
+
+// Two CSV cells of at most 32,000 characters each hold the stored body.
+const MAX_CONTENT_CHARS = 64000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -44,8 +48,8 @@ function isUsableArticleTitle(value) {
   return true;
 }
 
-// Without screenshots, images/video/fonts and ad networks only slow page loads
-// (and fill the shared browser context); title, body and dates are in the DOM.
+// Images/video/fonts and ad networks only slow page loads (and fill the shared
+// browser context); title, body and dates are in the DOM.
 const HEAVY_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico', 'bmp',
   'mp4', 'webm', 'm3u8', 'mp3', 'woff', 'woff2', 'ttf', 'otf', 'eot'];
 const AD_DOMAINS = ['doubleclick.net', 'googlesyndication.com', 'googleadservices.com', 'adservice.google.com',
@@ -168,7 +172,7 @@ async function extractArticleTitle(page) {
 const EMPTY_IDENTITY = { canonicalUrl: '', ogUrl: '', alternateUrls: [] };
 
 async function extractArticleContent(page) {
-  return page.evaluate(() => {
+  return page.evaluate(max => {
     // Publisher body selectors precede generic itemprop containers: some sites
     // put articleBody on a wrapper containing the entire page and other stories.
     const selectors = ['[data-field="body"]', '.fck_detail', '.singular-content',
@@ -190,8 +194,8 @@ async function extractArticleContent(page) {
     }).filter(Boolean);
     const text = texts.find(value => value.length >= 500) || texts.sort((a, b) => b.length - a.length)[0] ||
       document.querySelector('meta[name="description"]')?.content || '';
-    return text.slice(0, 30000);
-  }).catch(() => '');
+    return text.slice(0, max + 1);
+  }, MAX_CONTENT_CHARS).catch(() => '');
 }
 
 /**
@@ -219,83 +223,140 @@ async function extractIdentityLinks(page) {
   }).catch(() => ({ ...EMPTY_IDENTITY }));
 }
 
-// ─── Main export ─────────────────────────────────────────────────────────────
 
 /**
- * Fetch một article page, trích xuất publish_date, và chụp màn hình.
- * Retry 1 lần nếu navigation thất bại.
- *
- * @param {string} url   URL bài báo
- * @param {object} opts
- * @param {string}      opts.brand           Tên brand (để đặt tên ảnh)
- * @param {string}      opts.publisherDomain Domain trang báo (để đặt tên ảnh)
- * @param {string}      opts.screenshotDir   Thư mục lưu ảnh PNG
- * @param {Function}    opts.shouldCapture   Chỉ chụp sau khi URL/ngày đã được kiểm tra
- *
- * @returns {Promise<{finalUrl:string, publishDate:string|null, screenshotPath:string|null, articleTitle:string,
- *   canonicalUrl:string, ogUrl:string, alternateUrls:string[]}>}
+ * Tác giả, chuyên mục, tag, sapo, ngày sửa và các nhãn ngắn (breadcrumb, khung
+ * "tài trợ") để nhận diện bài PR. JSON-LD trước, rồi meta, rồi selector phổ biến.
  */
-async function fetchArticle(url, {
-  brand = '',
-  publisherDomain = '',
-  screenshotDir = '',
-  rssPublishDate = '',
-  includeContent = false,
-  shouldCapture = () => true,
-} = {}) {
-  const PAGE_TIMEOUT     = parseInt(process.env.PAGE_TIMEOUT      || '30000', 10);
-  const ARTICLE_DELAY_MIN = parseInt(process.env.ARTICLE_DELAY_MIN || '500',   10);
-  const ARTICLE_DELAY_MAX = parseInt(process.env.ARTICLE_DELAY_MAX || '1500',  10);
+async function extractArticleMeta(page) {
+  return page.evaluate(() => {
+    const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
+    const meta = selector => clean(document.querySelector(selector)?.getAttribute('content'));
+    const metas = selector => Array.from(document.querySelectorAll(selector))
+      .map(element => clean(element.getAttribute('content'))).filter(Boolean);
+    const texts = selector => Array.from(document.querySelectorAll(selector))
+      .map(element => clean(element.textContent)).filter(text => text && text.length <= 60);
+    const firstText = selectors => {
+      for (const selector of selectors) {
+        const text = clean(document.querySelector(selector)?.textContent);
+        if (text) return text;
+      }
+      return '';
+    };
+    const items = [];
+    for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+      try {
+        const parsed = JSON.parse(script.textContent || 'null');
+        for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
+          if (!item || typeof item !== 'object') continue;
+          items.push(item);
+          if (Array.isArray(item['@graph'])) items.push(...item['@graph'].filter(node => node && typeof node === 'object'));
+        }
+      } catch (_) {}
+    }
+    const stories = items.filter(item => /article|posting|report/i.test([].concat(item['@type'] || []).join(' ')));
+    const names = value => [].concat(value || [])
+      .map(entry => (typeof entry === 'string' ? entry : entry?.name)).map(clean).filter(Boolean);
+    const keywordList = value => [].concat(value ?? []).filter(entry => entry != null)
+      .flatMap(entry => String(entry).split(',')).map(clean).filter(Boolean);
+    const notUrl = value => (/^https?:\/\//i.test(value) ? '' : value);
+
+    const author = names(stories.flatMap(story => [].concat(story.author || []))).join(', ') ||
+      notUrl(meta('meta[name="author"]')) || notUrl(meta('meta[property="article:author"]')) ||
+      firstText(['[rel="author"]', '.author-name', '.article__author', '.detail-author', '.author', '.tacgia', 'p.author']);
+    const breadcrumb = texts('.breadcrumb a, .breadcrumbs a, [class*="breadcrumb"] a, ' +
+      'nav[aria-label*="readcrumb"] a, [itemtype*="BreadcrumbList"] [itemprop="name"]');
+    const section = clean(stories.map(story => [].concat(story.articleSection || [])[0]).find(Boolean)) ||
+      meta('meta[property="article:section"]') || breadcrumb[breadcrumb.length - 1] || '';
+    const tags = [...new Set([
+      ...metas('meta[property="article:tag"]'),
+      ...keywordList(stories.map(story => story.keywords)),
+      ...keywordList(meta('meta[name="news_keywords"]')),
+      ...texts('.tags a, .tag-list a, .box-tag a, .article-tags a, .detail-tag a, [class*="tags"] a'),
+    ])].slice(0, 30);
+    const sapo = firstText(['.sapo', '.article__sapo', '.detail-sapo', '.singular-sapo', '.chapeau',
+      '.article-summary', '.description', '.lead']) ||
+      meta('meta[property="og:description"]') || meta('meta[name="description"]');
+    const modifiedDate = clean(stories.map(story => story.dateModified).find(Boolean)) ||
+      meta('meta[property="article:modified_time"]');
+    const labels = [...breadcrumb, ...texts('[class*="sponsor"], [class*="advertorial"], [class*="tai-tro"], ' +
+      '[class*="taitro"], [class*="brand-content"], [class*="pr-label"], [class*="label-pr"], [class*="tag-pr"]')];
+    return { author, section, tags, sapo, modifiedDate, labels: [...new Set(labels)] };
+  }).catch(() => ({ author: '', section: '', tags: [], sapo: '', modifiedDate: '', labels: [] }));
+}
+
+/**
+ * Mọi dữ liệu của một trang bài đã mở (Playwright hoặc HTML tĩnh), đã chuẩn hoá
+ * tiếng Việt. `prSignals` nhận thêm mẫu của profile.
+ */
+async function extractArticle(page, finalUrl, { rssPublishDate = '', prSignals } = {}) {
+  const articleTitle = cleanVietnameseText(await extractArticleTitle(page));
+  const identity = await extractIdentityLinks(page);
+  const rawText = cleanVietnameseText(await extractArticleContent(page));
+  const contentTruncated = rawText.length > MAX_CONTENT_CHARS;
+  const articleText = rawText.slice(0, MAX_CONTENT_CHARS);
+  const publishDate = await extractPublishDate(page, finalUrl, { rssPublishDate });
+  const raw = await extractArticleMeta(page);
+  const meta = {
+    author: cleanVietnameseText(raw.author).slice(0, 200),
+    section: cleanVietnameseText(raw.section),
+    tags: raw.tags.map(tag => cleanVietnameseText(tag)).filter(Boolean),
+    sapo: cleanVietnameseText(raw.sapo).slice(0, 2000),
+    modifiedDate: raw.modifiedDate,
+    labels: raw.labels.map(label => cleanVietnameseText(label)),
+  };
+  meta.prSignals = detectPrSignals({ url: finalUrl, labels: meta.labels, section: meta.section,
+    tags: meta.tags, author: meta.author, body: articleText }, prSignals);
+  meta.sourceCredit = extractSourceCredit(articleText);
+  return { finalUrl, articleTitle, articleText, contentTruncated, publishDate, ...identity, meta };
+}
+
+// ─── Browser fetch ───────────────────────────────────────────────────────────
+
+/**
+ * Mở bài trong tab ẩn (sau redirect Google News), trích xuất toàn bộ dữ liệu.
+ * Thử lại 1 lần nếu điều hướng lỗi.
+ *
+ * @returns {Promise<{finalUrl:string, articleTitle:string, articleText:string, publishDate:string|null,
+ *   canonicalUrl:string, ogUrl:string, alternateUrls:string[], meta?:object, error?:string}>}
+ */
+async function fetchArticle(url, { rssPublishDate = '', prSignals } = {}) {
+  const PAGE_TIMEOUT = parseInt(process.env.PAGE_TIMEOUT || '30000', 10);
+  const ARTICLE_DELAY_MIN = parseInt(process.env.ARTICLE_DELAY_MIN || '500', 10);
+  const ARTICLE_DELAY_MAX = parseInt(process.env.ARTICLE_DELAY_MAX || '1500', 10);
+  const failure = (finalUrl, error) => ({ finalUrl, publishDate: null, articleTitle: '', articleText: '', error, ...EMPTY_IDENTITY });
 
   log.fetch(url);
-
-  let attempt = 0;
   const maxAttempts = 2;
-
-  while (attempt < maxAttempts) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let page;
     try {
       page = await newArticlePage();
       page.setDefaultTimeout(PAGE_TIMEOUT);
-      if (!screenshotDir) await blockHeavyResources(page);
+      await blockHeavyResources(page);
       let navigationResponse;
       page.on('response', response => {
         if (response.request().isNavigationRequest() && response.frame() === page.mainFrame()) navigationResponse = response;
       });
 
       const targetUrl = resolveGoogleRedirect(url) || url;
-      if (targetUrl !== url) {
-        log.info(`[URL] Unwrapped article URL: ${url} -> ${targetUrl}`);
-      }
-
-      await page.goto(targetUrl, {
-        waitUntil: 'domcontentloaded',
-        timeout: PAGE_TIMEOUT,
-      });
+      if (targetUrl !== url) log.info(`[URL] Unwrapped article URL: ${url} -> ${targetUrl}`);
+      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
       if (await isCaptchaPage(page) && !(await verifyInPopup(page, isCaptchaPage))) {
         // Skip unresolved challenges without reopening the same popup on retry.
-        return { finalUrl: page.url(), publishDate: null, screenshotPath: null,
-          articleTitle: '', error: 'CAPTCHA unresolved', ...EMPTY_IDENTITY };
+        return failure(page.url(), 'CAPTCHA unresolved');
       }
       await waitForGoogleNewsWrapperRedirect(page, PAGE_TIMEOUT);
 
-      // URL thật sau redirect
       let finalUrl = page.url();
       const unwrappedFinalUrl = resolveGoogleRedirect(finalUrl);
       if (unwrappedFinalUrl && unwrappedFinalUrl !== finalUrl) {
         log.info(`[URL] Reopening final redirect target: ${finalUrl} -> ${unwrappedFinalUrl}`);
-        await page.goto(unwrappedFinalUrl, {
-          waitUntil: 'domcontentloaded',
-          timeout: PAGE_TIMEOUT,
-        });
+        await page.goto(unwrappedFinalUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
         finalUrl = page.url();
       }
-
       if (await isCaptchaPage(page)) {
-        if (!(await verifyInPopup(page, isCaptchaPage))) {
-          return { finalUrl: page.url(), publishDate: null, screenshotPath: null,
-            articleTitle: '', error: 'CAPTCHA unresolved', ...EMPTY_IDENTITY };
-        }
+        if (!(await verifyInPopup(page, isCaptchaPage))) return failure(page.url(), 'CAPTCHA unresolved');
         finalUrl = page.url();
       }
       const canonicalFinalUrl = resolveGoogleRedirect(finalUrl) || finalUrl;
@@ -305,71 +366,25 @@ async function fetchArticle(url, {
       if (navigationResponse && navigationResponse.status() >= 400) {
         throw new Error(`Article HTTP ${navigationResponse.status()}: ${canonicalFinalUrl}`);
       }
-      const articleTitle = await extractArticleTitle(page);
-      const identity = await extractIdentityLinks(page);
-      const articleText = includeContent ? await extractArticleContent(page) : '';
-
-      // Trích xuất ngày đăng (7 fallback strategies)
-      const publishDate = await extractPublishDate(page, canonicalFinalUrl, { rssPublishDate });
-
-      // Chụp màn hình 800×800 (thấy tiêu đề, tỷ lệ 1:1)
-      let screenshotPath = null;
-      const captureAllowed = screenshotDir && await shouldCapture({
-        finalUrl: canonicalFinalUrl,
-        publishDate,
-        articleTitle,
-        articleText,
-        ...identity,
-      });
-      if (captureAllowed) {
-        screenshotPath = await captureArticleScreenshot(page, {
-          brand,
-          publisherDomain,
-          publishDate,
-          articleUrl: canonicalFinalUrl,
-          screenshotDir,
-        });
-      }
-
+      const result = await extractArticle(page, canonicalFinalUrl, { rssPublishDate, prSignals });
       await randomDelay(ARTICLE_DELAY_MIN, ARTICLE_DELAY_MAX);
-
-      return {
-        finalUrl: canonicalFinalUrl,
-        publishDate,
-        screenshotPath,
-        articleTitle,
-        articleText,
-        ...identity,
-      };
-
+      return result;
     } catch (err) {
-      attempt++;
       if (attempt < maxAttempts) {
         log.warn(`Retrying article (attempt ${attempt + 1}): ${url} — ${err.message}`);
         await randomDelay(1000, 2000);
       } else {
         log.error(url, err.message);
-        return {
-          finalUrl: resolveGoogleRedirect(url) || url,
-          publishDate: null,
-          screenshotPath: null,
-          articleTitle: '',
-          error: err.message,
-          ...EMPTY_IDENTITY,
-        };
+        return failure(resolveGoogleRedirect(url) || url, err.message);
       }
     } finally {
       if (page) await closeArticlePage(page);
     }
   }
-
-  return {
-    finalUrl: resolveGoogleRedirect(url) || url,
-    publishDate: null,
-    screenshotPath: null,
-    articleTitle: '',
-    ...EMPTY_IDENTITY,
-  };
+  return failure(resolveGoogleRedirect(url) || url, 'Article fetch did not run');
 }
 
-module.exports = { fetchArticle, extractArticleContent, shouldBlockRequest, blockHeavyResources };
+module.exports = {
+  MAX_CONTENT_CHARS, fetchArticle, extractArticle, extractArticleContent, extractArticleMeta,
+  isGoogleNewsWrapperUrl, shouldBlockRequest, blockHeavyResources,
+};

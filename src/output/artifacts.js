@@ -1,13 +1,15 @@
 'use strict';
 
 /**
- * Output artifact utilities: incremental CSV writing and article screenshots.
+ * Output artifact utilities: incremental CSV writing.
  *
  * Produces a UTF-8 BOM-encoded CSV so Vietnamese text displays correctly when
  * opened in Microsoft Excel on Windows.
  *
- * Column order (fixed):
- *   brand | mentioned_brands | article_title | article_url | publisher_domain | publisher_homepage | publish_date | sentiment | classification_source | article_id
+ * Column order (fixed; the first ten columns are read by downstream pipelines):
+ *   brand | mentioned_brands | article_title | article_url | publisher_domain | publisher_homepage | publish_date |
+ *   sentiment | classification_source | article_id | author | section | tags | sapo | is_pr | pr_signals |
+ *   republished_of | source_credit | content | content_2
  *
  * Usage:
  *   const writer = createCsvWriter(filePath);
@@ -35,6 +37,16 @@ const COLUMNS = [
   'sentiment',
   'classification_source',
   'article_id',           // ID ổn định theo URL đã chuẩn hoá (bỏ ngôn ngữ/AMP/tracking)
+  'author',
+  'section',              // chuyên mục của báo
+  'tags',                 // phân cách bằng "; "
+  'sapo',
+  'is_pr',                // "yes" khi trang có dấu hiệu bài PR/tài trợ
+  'pr_signals',           // dấu hiệu tìm thấy, ví dụ "label:thong tin doanh nghiep; url:/tai-tro/"
+  'republished_of',       // article_id của bài đăng sớm nhất ở báo khác (bài đăng lại)
+  'source_credit',        // dòng ghi nguồn cuối bài ("Theo …")
+  'content',              // toàn văn, tối đa 32.000 ký tự mỗi ô (giới hạn ô Excel 32.767)
+  'content_2',            // phần còn lại của toàn văn khi bài dài hơn một ô
 ];
 
 /**
@@ -181,76 +193,10 @@ function slugify(str) {
     .toLowerCase();
 }
 
-function isoToDateSlug(isoString) {
-  if (!isoString) return 'nodate';
-  const date = new Date(isoString);
-  if (isNaN(date.getTime())) return 'nodate';
-
-  const vietnamTime = new Date(date.getTime() + 7 * 60 * 60 * 1000);
-  const pad = (value) => String(value).padStart(2, '0');
-  return (
-    `${vietnamTime.getUTCFullYear()}` +
-    `${pad(vietnamTime.getUTCMonth() + 1)}` +
-    `${pad(vietnamTime.getUTCDate())}`
-  );
-}
-
-function shortHash(url) {
-  let hash = 5381;
-  for (let index = 0; index < url.length; index++) {
-    hash = ((hash << 5) + hash) ^ url.charCodeAt(index);
-    hash >>>= 0;
-  }
-  return hash.toString(16).padStart(8, '0').slice(0, 6);
-}
-
-async function captureArticleScreenshot(page, {
-  brand,
-  publisherDomain,
-  publishDate,
-  articleUrl,
-  screenshotDir,
-}) {
-  try {
-    if (!fs.existsSync(screenshotDir)) {
-      fs.mkdirSync(screenshotDir, { recursive: true });
-    }
-
-    await page.setViewportSize({ width: 800, height: 800 });
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await Promise.race([
-      page.waitForLoadState('networkidle', { timeout: 5000 }),
-      new Promise((resolve) => setTimeout(resolve, 1500)),
-    ]).catch(() => {});
-
-    const filename = [
-      slugify(brand),
-      slugify(publisherDomain),
-      isoToDateSlug(publishDate),
-      shortHash(articleUrl),
-    ].join('_') + '.png';
-    const filePath = path.join(screenshotDir, filename);
-
-    await page.screenshot({
-      path: filePath,
-      type: 'png',
-      fullPage: false,
-    });
-
-    log.info(`[SCREENSHOT] Saved: ${filename}`);
-    return filePath;
-  } catch (err) {
-    log.warn(`[SCREENSHOT] Failed for ${articleUrl}: ${err.message}`);
-    return null;
-  }
-}
-
 module.exports = {
   COLUMNS,
   rowToCsvLine,
   createCsvWriter,
   buildOutputPath,
-  captureArticleScreenshot,
   slugify,
-  isoToDateSlug,
 };

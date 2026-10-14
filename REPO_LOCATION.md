@@ -10,14 +10,12 @@ Install dependencies with `npm.cmd ci`, install Chromium with
 `npx.cmd playwright install chromium`, and run `npm.cmd start` from the root.
 See `README.md` for configuration, date ranges, and headless mode.
 
-Both CLI entry points load `.env` from this repository root. Browser session
-state is stored in `.google-state.json` here. Crawler output defaults to
-`output/` here; relative `OUTPUT_DIR` values resolve from this root.
+The CLI loads `.env` from this repository root. Browser session state is
+stored in `.google-state.json` here. Crawler output and the SQLite store
+(`output/news.db`) default to `output/` here; relative `OUTPUT_DIR` values
+resolve from this root.
 
-For `capture:pr-images`, the input JSON path and each item's relative
-`screenshotDir` resolve from the command's working directory. Run the command
-from the repository root or provide absolute paths.
-
-Project output in `output/` and run logs in `logs/` are tracked in Git.
+CSV output in `output/` and run logs in `logs/` are tracked in Git; the
+SQLite store is not.
 Local credentials, browser state, dependencies, and Git history backups
 are excluded from Git by `.gitignore`.

@@ -10,3 +10,9 @@ yarn-debug.log*
 yarn-error.log*
 /logs/selector-debug/
 /output/*.lock
+
+# Shared SQLite store: binary, grows with full text; CSV exports stay tracked
+/output/*.db
+/output/*.db-wal
+/output/*.db-shm
+/output/*.gn-decode.json

@@ -1,0 +1,9 @@
+2026-10-14T09:20:31.847Z [INFO] Profile: dairy-kids-vn | command: enrich | store: /Users/luvii/Documents/News Crawler/output/news.db
+2026-10-14T09:20:31.899Z [INFO] [ENRICH] 2299 articles in profile dairy-kids-vn
+2026-10-14T09:20:49.225Z [INFO] [ENRICH] 400/2299 articles checked
+2026-10-14T09:21:06.299Z [INFO] [ENRICH] 800/2299 articles checked
+2026-10-14T09:21:23.316Z [INFO] [ENRICH] 1200/2299 articles checked
+2026-10-14T09:21:40.386Z [INFO] [ENRICH] 1600/2299 articles checked
+2026-10-14T09:21:57.623Z [INFO] [ENRICH] 2000/2299 articles checked
+2026-10-14T09:22:10.511Z [INFO] Enrich: 2299 classified (1904 accepted, 395 rejected); 0 imported articles re-read, 0 unavailable; 161 republished.
+2026-10-14T09:22:10.511Z [HEALTH] WARN noisy query for Vinamilk (publisher-year): ""Vinamilk" site:tuoitre.vn" — 150 rejected, 99 accepted. Narrow it in profile dairy-kids-vn.

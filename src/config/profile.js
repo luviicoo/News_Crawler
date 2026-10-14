@@ -33,7 +33,7 @@ function validateProfile(profile, file) {
   }
   if (!isStringList(profile.excludePhrases || [])) fail('"excludePhrases" must be a list of strings');
   const topic = profile.topic || {};
-  for (const key of ['keywords', 'negativeTitleKeywords']) {
+  for (const key of ['keywords', 'negativeTitleKeywords', 'queries']) {
     if (!isStringList(topic[key] || [])) fail(`"topic.${key}" must be a list of strings`);
   }
   for (const key of ['description', 'llmRole', 'llmExclusions']) {
@@ -42,6 +42,17 @@ function validateProfile(profile, file) {
   if (topic.negativeOverride !== undefined && typeof topic.negativeOverride !== 'function') {
     fail('"topic.negativeOverride" must be a function');
   }
+  if (!isStringList(topic.strongKeywords || [])) fail('"topic.strongKeywords" must be a list of strings');
+  if (topic.minBodyStrongHits !== undefined && !(Number.isInteger(topic.minBodyStrongHits) && topic.minBodyStrongHits > 0)) {
+    fail('"topic.minBodyStrongHits" must be a positive integer');
+  }
+  const sentiment = profile.sentiment || {};
+  for (const key of ['positive', 'negative', 'critical', 'negators', 'nonNegators']) {
+    if (!isStringList(sentiment[key] || [])) fail(`"sentiment.${key}" must be a list of strings`);
+  }
+  const prSignals = profile.prSignals || {};
+  if (!isStringList(prSignals.labels || [])) fail('"prSignals.labels" must be a list of strings');
+  if (!isRegexList(prSignals.urlPatterns || [])) fail('"prSignals.urlPatterns" must be a list of RegExp');
   if (!Array.isArray(profile.brands) || !profile.brands.length) fail('"brands" must be a non-empty list');
   const names = new Set();
   for (const [index, def] of profile.brands.entries()) {

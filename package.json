@@ -1,7 +1,7 @@
 {
   "name": "news-crawler",
   "version": "1.0.0",
-  "description": "Standalone Playwright-based Google News crawler for Vietnamese insurance brands",
+  "description": "crawl-news: Google News crawler that stores full-text Vietnamese articles in SQLite and classifies them per brand profile",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/luviicoo/News_Crawler.git"
@@ -10,19 +10,24 @@
   "scripts": {
     "start": "node src/index.js",
     "start:headless": "node src/index.js --headless",
-    "capture:pr-images": "node src/capture_pr_images.js",
+    "crawl": "node src/index.js crawl",
+    "enrich": "node src/index.js enrich",
+    "export": "node src/index.js export",
+    "import": "node src/index.js import",
+    "status": "node src/index.js status",
     "test": "node --test",
     "postinstall": "node scripts/patch-playwright-extra.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
+    "linkedom": "^0.18.12",
     "p-limit": "^3.1.0",
     "playwright": "^1.44.0",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.13.0"
   },
   "license": "MIT"
 }

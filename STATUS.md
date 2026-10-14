@@ -1,30 +1,42 @@
 # Tình trạng tool kéo báo
 
-Cập nhật 06/10/2026. Hướng dẫn lệnh và cấu hình tại [README.md](README.md).
+Cập nhật 14/10/2026. Hướng dẫn lệnh và cấu hình tại [README.md](README.md).
 
-## Luồng chạy chính đã sửa
+## So với PR-article-scraper cũ
 
-- Google News RSS tìm từng từ khóa theo tháng và bổ sung từng báo/năm, độc lập với số kết quả feed. Vẫn giữ truy vấn toàn khoảng để không bỏ kết quả do thứ hạng khác nhau.
-- Feed từ 100 kết quả chia tiếp xuống từng ngày; giữ kết quả cha/con và ghi những ngày vẫn chạm giới hạn.
-- Google Web bổ sung theo tháng và từng báo/năm ngay cả khi RSS có kết quả; phân trang và báo khi chạm giới hạn.
-- Tải và đọc thân bài trước khi phân loại; giữ tin ngành nhắc nhiều hãng cho từng hãng có mặt trong nội dung. Không nhận chỉ vì tên hãng có trong URL hoặc tin liên quan.
-- Chống trùng bằng URL chuẩn hóa, canonical cùng tiêu đề và hreflang; lưu liên kết định danh cùng bài đã nhận để khôi phục khi chạy tiếp.
-- Nhật ký `.state.jsonl` lưu URL tìm được và kết quả xử lý; CSV có thể được dựng lại từ nhật ký sau khi dừng. Khóa PID ngăn hai tiến trình ghi chung checkpoint.
-- Chạy lại cùng lệnh chỉ thử phần chưa xong/lỗi. `--refresh` mới tìm lại các truy vấn đã xong để phát hiện bài mới được lập chỉ mục.
-- Log `[HEALTH]` báo các truy vấn/bài chưa hoàn tất; không xuất file báo cáo riêng. Không đổi CAPTCHA hoặc lỗi selector thành kết quả rỗng thành công.
-- CSV là mặc định; tìm kiếm/tải/chụp đều chạy ẩn, cửa sổ riêng chỉ mở khi cần giải CAPTCHA.
+| | Bản cũ | Hiện tại (crawl-news) |
+| --- | --- | --- |
+| Dữ liệu | Link, ngày, tiêu đề, hãng, sentiment | Toàn văn, tác giả, chuyên mục, tag, sapo, dấu hiệu PR, bài đăng lại, nguồn |
+| Lưu trữ | CSV + checkpoint `.state.jsonl` riêng từng lượt | Store SQLite chung (`articles`, `article_contents`, `crawl_runs`…), CSV xuất từ store |
+| Phạm vi | Bài nhắc hãng | Thêm tin ngành: 14 truy vấn ngành mỗi profile, nhận cả bài không nhắc hãng nào |
+| Tải bài | Chromium cho mọi bài, mở trang Google News để lấy link thật | Giải mã link Google News và tải bài bằng HTTP; Chromium chỉ dự phòng |
+| Phân loại | Lúc crawl, cho từng hãng tìm thấy URL | Phase 2 (enrich) riêng; crawl giữ mọi bài đọc được |
+| Trùng lặp | Mở lại URL đã đọc cho hãng khác (dùng lại kết quả) | Mỗi URL tải một lần cho mọi hãng và profile |
+| Chụp ảnh | Có | Đã bỏ |
+
+## Luồng chạy chính
+
+- Google News RSS tìm từng truy vấn theo tháng, bổ sung từng báo/năm và truy vấn ngành. Feed từ 100 kết quả chia tiếp xuống từng ngày.
+- Google Web bổ sung theo tháng và báo/năm, phân trang và báo khi chạm giới hạn.
+- Kết quả tìm kiếm và trạng thái truy vấn ghi cùng transaction. Chạy lại cùng lệnh chỉ làm phần chưa xong/lỗi; `--refresh` tìm lại truy vấn đã xong.
+- Chống trùng bằng URL chuẩn hoá, canonical cùng tiêu đề và hreflang trên toàn store.
+- Enrich phân loại bằng tiêu đề và thân bài (rules của profile + Gemini). Bài nhắc nhiều hãng ghi một lần với nhãn ngành.
+- Log `[HEALTH]` báo truy vấn/bài chưa hoàn tất và truy vấn nhiễu. CAPTCHA hoặc lỗi selector không bị coi là "0 bài, đã xong".
 
 ## Giới hạn cần hiểu
 
-- Google News và Google Web không phải kho lưu trữ đầy đủ của từng báo. Chưa có bộ RSS/sitemap/archive riêng của mỗi nguồn. Hoàn tất kế hoạch không bảo đảm mọi bài từng xuất bản đều đã được lập chỉ mục.
-- Google Web có thể bị CAPTCHA. Tool chờ xác thực thủ công và giữ truy vấn chưa xong để chạy tiếp; không tự giải CAPTCHA. Tăng `--web-pages` để xử lý truy vấn còn chạm giới hạn.
-- Bài chết link, bị chặn hoặc thiếu ngày đăng được ghi là chưa xác minh trong checkpoint, không được tự gán ngày và đưa vào CSV.
-- Bộ phân loại vẫn có thể sai; lấy vùng nội dung phụ thuộc cấu trúc HTML từng báo. `hybrid`/`gemini` cần API key; thiếu key/API lỗi dùng dự phòng.
-- Hai bản ngôn ngữ khác slug mà không khai báo hreflang vẫn có thể còn trùng. Bài đăng ở các báo khác nhau được giữ riêng theo chủ ý. ID được giữ trong cùng checkpoint; hai lượt kéo độc lập có thể chọn URL đại diện khác nhau.
-- Checkpoint mới không tự kế thừa CSV của các lượt rà thủ công trước đây. File Prudential đã rà có 1.403 bài được giữ riêng.
+- Google News và Google Web không phải kho lưu trữ đầy đủ của từng báo. Hoàn tất kế hoạch không bảo đảm mọi bài từng xuất bản đều đã được lập chỉ mục.
+- Giải mã link Google News bằng HTTP dùng API nội bộ của Google (`batchexecute`). Nếu Google đổi API, tool mở link bằng trình duyệt. Khi Google chặn (HTTP 429), trình duyệt cũng không mở được vì dùng cùng API, nên link Google News được hoãn 10 phút (gấp đôi mỗi lần còn bị chặn, tối đa 60 phút) trong khi tìm kiếm và các link khác vẫn chạy; giải mã cách nhau `GN_DECODE_DELAY_MS` để hạn chế bị chặn.
+- Trang cần JavaScript hoặc có chống bot vẫn phải mở bằng trình duyệt.
+- Google Web có thể bị CAPTCHA. Tool chờ xác thực thủ công và giữ truy vấn chưa xong để chạy tiếp; không tự giải CAPTCHA.
+- Bài chết link, bị chặn hoặc thiếu ngày đăng được ghi là chưa xác minh, không tự gán ngày.
+- Dấu hiệu PR dựa trên nhãn/URL phổ biến của báo Việt Nam. Bài PR không ghi nhãn sẽ không được nhận ra; báo dùng nhãn riêng cần khai báo `prSignals` trong profile.
+- Tác giả/chuyên mục/tag/sapo phụ thuộc HTML từng báo; có báo không có các trường này.
+- Bộ phân loại vẫn có thể sai. Sentiment bằng rule dựa trên từ điển của profile: bài mỉa mai, giọng gián tiếp hoặc thiếu từ trong từ điển có thể bị chấm sai; bài lẫn lộn mới được Gemini xem lại. `hybrid`/`gemini` cần API key; thiếu key hoặc API lỗi thì dùng xử lý dự phòng.
+- Bài import từ bản cũ không có toàn văn cho đến khi enrich tải lại. Bài bản cũ đã loại không có nội dung và không được tải lại.
 
 ## Xác minh
 
-- Kiểm thử kế hoạch, đọc thân bài, retry/resume, dừng, khóa, khôi phục CSV và CAPTCHA trong `test/`.
-- Chạy thử mạng trên Prudential/VnExpress tháng 01/2018: RSS tìm và tải được một bài nhắc Prudential trong thân bài. Google Web gặp CAPTCHA; truy vấn được ghi là lỗi chưa hoàn tất, không báo đủ dữ liệu.
-- Đọc kết quả kiểm thử mới nhất bằng `npm test`; test mạng phía trên là lượt chạy riêng, không phải cam kết Google luôn truy cập được.
+- `npm test` kiểm tra kế hoạch, store, resume, dừng, khoá, tải HTTP và dự phòng trình duyệt, giải mã link Google News (dữ liệu mẫu), metadata/PR, enrich, export, import.
+- Chạy thử mạng ngày 14/10/2026, Prudential, 01–11/10/2026, chỉ RSS: lưu 78 bài, 76 bài tải bằng HTTP và 2 bài phải dùng trình duyệt. 4 trang mở bằng trình duyệt vẫn không đọc được (trang danh mục hoặc trang cần JavaScript). Export trùng 23/26 bài với CSV cũ cùng khoảng ngày; 3 bài thiếu là bản đăng ở báo khác mà lượt cũ tìm qua Google Web, lượt thử này không chạy Web.
+- Import checkpoint dairy cũ (10.160 bài) vào store rồi export ra 10.159 dòng. Dòng thiếu là tin tuyển dụng (vieclam24h.vn), nay bị chặn theo chủ ý.

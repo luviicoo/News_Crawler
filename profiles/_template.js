@@ -32,9 +32,21 @@ module.exports = {
     llmRole: 'Ban la chuyen gia phan tich du lieu social listening cho nganh sua tai Viet Nam.',
     // Những loại tin Gemini phải loại (không bắt buộc).
     llmExclusions: 'tin the thao, giai tri, hoac noise',
+    // (Không bắt buộc) Truy vấn tin ngành: bài không cần nhắc brand nào. Chạy
+    // Google News RSS cho cả khoảng ngày và từng tháng (không chạy theo báo/năm).
+    // Bài chỉ do các truy vấn này tìm thấy được nhận là tin ngành khi qua
+    // keywords bên dưới (và Gemini ở chế độ hybrid/gemini).
+    queries: ['"ngành sữa"', '"thị trường sữa"'],
     // Bài phải chứa ít nhất 1 từ khóa (tiêu đề hoặc thân bài) mới qua lớp rule.
     // Để [] thì bỏ qua bước này (chỉ dựa vào việc nhắc tên brand).
     keywords: ['sua', 'dinh duong', 'san pham sua', 'nganh sua'],
+    // (Không bắt buộc, nên có) Cụm từ ngành rõ nghĩa, viết CÓ DẤU. Tin ngành có cụm
+    // này ở tiêu đề được rule nhận ngay; xuất hiện từ minBodyStrongHits lần ở thân
+    // bài (có ở đoạn mở đầu) cũng nhận; không có cụm nào thì loại. Chỉ ca lưng
+    // chừng mới hỏi Gemini (hybrid). Bài chỉ nhắc brand một lần, sâu trong bài
+    // không có cụm nào cũng được hỏi Gemini.
+    strongKeywords: ['sữa công thức', 'ngành sữa', 'sữa tươi'],
+    minBodyStrongHits: 3,
     // Tiêu đề chứa một trong các từ này thì loại, kể cả khi có tên brand.
     negativeTitleKeywords: ['bong da', 'ca si', 'phim'],
     // (Không bắt buộc) Ngoại lệ cho negativeTitleKeywords. Nhận { text, title, content }
@@ -42,10 +54,26 @@ module.exports = {
     // negativeOverride: ({ text }) => /\bgiai bong da vinamilk\b/.test(text),
   },
 
+  // (Không bắt buộc) Dấu hiệu bài PR/tài trợ riêng của ngành hoặc báo, thêm vào
+  // bộ mẫu chung (nhãn "Thông tin doanh nghiệp", "Nội dung tài trợ", URL /tai-tro/...).
+  // labels: so khớp không dấu với breadcrumb, chuyên mục, tag, câu đầu/cuối bài.
+  // urlPatterns: regex trên đường dẫn URL.
+  // prSignals: { labels: ['tin doanh nghiep'], urlPatterns: [/\/doanh-nghiep-viet\//] },
+
   // Cụm từ chỉ pháp nhân KHÁC không được tính là nhắc brand (công ty mẹ nước
   // ngoài, cổ phiếu...). Bị xóa trước khi dò tên brand; nếu nằm trong tiêu đề
   // thì bài bị loại với mọi brand.
   excludePhrases: ['co phieu vnm'],
+
+  // (Không bắt buộc, nên có) Sentiment bằng rule, viết CÓ DẤU (so khớp giữ dấu).
+  // Điểm: tiêu đề x3, đoạn mở đầu x2, câu thân bài nhắc brand x1; critical tính
+  // gấp đôi. Một chiều đạt từ 3 điểm và hơn gấp ba chiều kia thì rule quyết;
+  // lẫn lộn thì hỏi Gemini (hybrid) hoặc lấy chiều trội (rules). Bỏ trống thì
+  // sentiment là neutral. Từ điển chung: profiles/_shared/sentiment-vi.js.
+  // sentiment: {
+  //   ...require('./_shared/sentiment-vi'),
+  //   critical: [...require('./_shared/sentiment-vi').critical, 'sữa giả'],
+  // },
 
   brands: [
     {

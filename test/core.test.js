@@ -18,13 +18,12 @@ const {
   resolveGoogleRedirect,
   seenCount,
 } = require('../src/parser/urlParser');
-const { createCsvWriter, isoToDateSlug, slugify } = require('../src/output/artifacts');
+const { createCsvWriter, slugify } = require('../src/output/artifacts');
 const { classifyArticle, normalizeText } = require('../src/utils/articleClassifier');
 
 test('date helpers parse and format Vietnam dates', () => {
   assert.equal(parseToISO('15/03/2024'), '2024-03-15T00:00:00.000Z');
   assert.equal(formatDateVN('2019-02-28T23:30:01.000Z'), '06:30:01 01/03/2019');
-  assert.equal(isoToDateSlug('2026-09-01T18:00:00.000Z'), '20260902');
 });
 
 test('historical RSS publication date takes priority over a header clock', async () => {
@@ -210,7 +209,8 @@ test('artifact module writes UTF-8 BOM CSV and creates stable slugs', async (con
   const content = fs.readFileSync(outputPath, 'utf8');
   assert.equal(content.charCodeAt(0), 0xFEFF);
   assert.match(content, /"Tiêu đề, có dấu phẩy"/);
-  assert.match(content.split('\n')[0], /,article_id$/);
+  assert.match(content.split('\n')[0], /^\uFEFFbrand,mentioned_brands,article_title,article_url,publisher_domain,publisher_homepage,publish_date,sentiment,classification_source,article_id,/);
+  assert.match(content.split('\n')[0], /,content,content_2$/);
   assert.equal(slugify('Bảo Việt Nhân Thọ'), 'bao_viet_nhan_tho');
 });
 

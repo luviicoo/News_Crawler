@@ -13,8 +13,10 @@
  * exports are bound to the default profile for backward compatibility.
  */
 
+const { createHash } = require('crypto');
 const log = require('../output/logger');
 const { loadProfile } = require('../config/profile');
+const { compileLexicon, isEmptyLexicon, scoreSentiment, topicStrength, phraseList, splitSentences, LEAD_CHARS } = require('./ruleSignals');
 
 const ALLOWED_DECISIONS = new Set(['accept', 'reject', 'reassign']);
 const ALLOWED_SENTIMENTS = new Set(['positive', 'negative', 'neutral']);
@@ -26,6 +28,12 @@ function getClassifierConfig(env = process.env) {
     geminiApiKey: String(env.GEMINI_API_KEY || env.GOOGLE_API_KEY || '').trim(),
     geminiModel: String(env.GEMINI_MODEL || env.GOOGLE_AI_MODEL || 'gemini-2.5-flash').trim(),
     geminiTimeoutMs: parseInt(env.GEMINI_TIMEOUT_MS || '15000', 10),
+    geminiMaxRetries: parseInt(env.GEMINI_MAX_RETRIES || '4', 10),
+    // Đầu bài là phần cho biết bài nói về gì; gửi toàn văn chỉ làm tăng phí.
+    geminiMaxContentChars: parseInt(env.GEMINI_MAX_CONTENT_CHARS || '6000', 10),
+    // Classification needs no reasoning; thinking tokens are slow and billed as output.
+    // Empty = the model's default. Pro models cannot turn thinking off.
+    geminiThinkingBudget: String(env.GEMINI_THINKING_BUDGET ?? '0').trim(),
   };
 }
 
@@ -322,10 +330,36 @@ function parseLLMResult(rawText, targetBrandDef, brandDefs) {
   };
 }
 
-async function analyzeWithLLM(targetBrandDef, title, content = '', article = {}, brandDefs, config, topic = {}) {
+const RETRYABLE_GEMINI_STATUS = new Set([429, 500, 503]);
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/** Seconds Gemini asks to wait: Retry-After header or RetryInfo in the error body. */
+function geminiRetryDelayMs(response, bodyText) {
+  const header = Number(response.headers?.get?.('retry-after'));
+  if (header > 0) return header * 1000;
+  const match = String(bodyText || '').match(/"retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/);
+  return match ? Number(match[1]) * 1000 : 0;
+}
+
+/** Rate limits (429) and overloads (500/503) wait and retry instead of becoming a fallback decision. */
+async function requestGemini(prompt, config) {
   if (!config.geminiApiKey) {
     throw new Error('Missing Gemini API key (GEMINI_API_KEY or GOOGLE_API_KEY)');
   }
+  const maxRetries = Number.isInteger(config.geminiMaxRetries) ? Math.max(0, config.geminiMaxRetries) : 4;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await requestGeminiOnce(prompt, config);
+    } catch (err) {
+      if (!err.retryable || attempt >= maxRetries) throw err;
+      const delay = Math.min(60000, Math.max(err.retryDelayMs || 0, 2000 * 2 ** attempt)) * (0.8 + Math.random() * 0.4);
+      log.warn(`${err.message}; retrying Gemini in ${Math.round(delay / 1000)} s (${attempt + 1}/${maxRetries}).`);
+      await sleep(delay);
+    }
+  }
+}
+
+async function requestGeminiOnce(prompt, config) {
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), config.geminiTimeoutMs);
@@ -333,17 +367,6 @@ async function analyzeWithLLM(targetBrandDef, title, content = '', article = {},
   try {
     const endpoint =
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel)}:generateContent`;
-
-    const prompt = buildLLMPrompt(
-      targetBrandDef,
-      {
-        ...article,
-        title,
-        content,
-      },
-      brandDefs,
-      topic
-    );
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -362,13 +385,20 @@ async function analyzeWithLLM(targetBrandDef, title, content = '', article = {},
         generationConfig: {
           temperature: 0,
           responseMimeType: 'application/json',
+          ...(config.geminiThinkingBudget !== '' && !/-pro\b/.test(config.geminiModel)
+            ? { thinkingConfig: { thinkingBudget: Number(config.geminiThinkingBudget) } } : {}),
         },
       }),
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini HTTP ${response.status}`);
+      const error = new Error(`Gemini HTTP ${response.status}`);
+      if (RETRYABLE_GEMINI_STATUS.has(response.status)) {
+        error.retryable = true;
+        error.retryDelayMs = geminiRetryDelayMs(response, await response.text().catch(() => ''));
+      }
+      throw error;
     }
 
     const payload = await response.json();
@@ -381,16 +411,91 @@ async function analyzeWithLLM(targetBrandDef, title, content = '', article = {},
     if (!rawText) {
       throw new Error('Gemini returned empty content');
     }
-
-    return parseLLMResult(rawText, targetBrandDef, brandDefs);
+    return rawText;
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error(`Gemini timeout after ${config.geminiTimeoutMs}ms`);
+      const timeout = new Error(`Gemini timeout after ${config.geminiTimeoutMs}ms`);
+      timeout.retryable = true;
+      throw timeout;
     }
     throw err;
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+const callGemini = (prompt, config) => (config.call || requestGemini)(prompt, config);
+const clip = (content, config) => String(content || '').slice(0, config.geminiMaxContentChars > 0 ? config.geminiMaxContentChars : undefined);
+
+async function analyzeWithLLM(targetBrandDef, title, content = '', article = {}, brandDefs, config, topic = {}) {
+  const prompt = buildLLMPrompt(targetBrandDef, { ...article, title, content: clip(content, config) }, brandDefs, topic);
+  return parseLLMResult(await callGemini(prompt, config), targetBrandDef, brandDefs);
+}
+
+// Rules already accepted the article; the model only settles a mixed tone, from the relevant passages.
+function buildSentimentPrompt(subject, title, snippets, topic = {}) {
+  return [
+    topic.llmRole || 'Ban la chuyen gia phan tich du lieu social listening.',
+    `Danh gia sac thai cua bai bao doi voi ${subject}.`,
+    '',
+    'Quy tac bat buoc:',
+    '1. Chi tra ve DUNG MOT object JSON hop le, khong markdown.',
+    '2. "sentiment" chi duoc la positive, negative, neutral.',
+    '3. "confidence" phai la so tu 0 den 1.',
+    '',
+    '{ "sentiment": "neutral", "confidence": 0.0, "reason": "string" }',
+    '',
+    `Article title: "${title || ''}"`,
+    `Relevant passages: "${snippets.join(' ').slice(0, 2000)}"`,
+  ].join('\n');
+}
+
+function parseSentimentResult(rawText) {
+  const parsed = JSON.parse(stripMarkdownFences(rawText));
+  const sentiment = String(parsed.sentiment || '').trim().toLowerCase();
+  if (!ALLOWED_SENTIMENTS.has(sentiment)) throw new Error(`Unsupported sentiment: ${parsed.sentiment}`);
+  const confidence = clampConfidence(parsed.confidence);
+  if (confidence == null) throw new Error(`Invalid confidence: ${parsed.confidence}`);
+  return { sentiment, confidence, reason: String(parsed.reason || '').trim() };
+}
+
+// Industry news names no tracked brand: the model only judges the topic.
+function buildTopicPrompt(article, topic = {}) {
+  const description = topic.description || 'chu de dang theo doi';
+  return [
+    topic.llmRole || 'Ban la chuyen gia phan tich du lieu social listening.',
+    `Danh gia bai bao co phai tin nganh thuoc ngu canh ${description} hay khong.`,
+    '',
+    'Quy tac bat buoc:',
+    '1. Chi tra ve DUNG MOT object JSON hop le, khong markdown.',
+    `2. "is_topic" = false neu bai khong thuoc ngu canh ${description}` +
+      (topic.llmExclusions ? `, hoac la ${topic.llmExclusions}.` : '.'),
+    '3. "sentiment" chi duoc la positive, negative, neutral.',
+    '4. "confidence" phai la so tu 0 den 1.',
+    '',
+    '{ "is_topic": true, "sentiment": "neutral", "confidence": 0.0, "reason": "string" }',
+    '',
+    `Article title: "${article.title || ''}"`,
+    `Article content: "${article.content || ''}"`,
+    `Article URL: "${article.url || ''}"`,
+  ].join('\n');
+}
+
+function parseTopicResult(rawText) {
+  const parsed = JSON.parse(stripMarkdownFences(rawText));
+  const sentiment = String(parsed.sentiment || '').trim().toLowerCase();
+  if (!ALLOWED_SENTIMENTS.has(sentiment)) throw new Error(`Unsupported sentiment: ${parsed.sentiment}`);
+  const confidence = clampConfidence(parsed.confidence);
+  if (confidence == null) throw new Error(`Invalid confidence: ${parsed.confidence}`);
+  const isTopic = Boolean(parsed.is_topic);
+  return {
+    decision: isTopic ? 'accept' : 'reject',
+    is_topic: isTopic,
+    sentiment,
+    confidence,
+    source: 'gemini',
+    reason: String(parsed.reason || 'Gemini topic decision').trim() || 'Gemini topic decision',
+  };
 }
 
 function buildIrrelevantResult(reason, source = 'rules') {
@@ -458,9 +563,56 @@ const MATCHER_HELPERS = { normalizeText };
  *   - mentionMatcher: (rawText, { normalizeText }) => bool, replaces the
  *                     alias check for brands too ambiguous for aliases alone
  */
-function createClassifier(profile) {
+function createClassifier(profile, { cache = null } = {}) {
   const topic = profile.topic || {};
   const topicKeywords = normalizeList(topic.keywords);
+  const lexicon = compileLexicon(profile.sentiment);
+  const strongKeywords = phraseList(topic.strongKeywords);
+  const minBodyStrongHits = topic.minBodyStrongHits || 3;
+  // Gemini calls made, answers reused from the cache and calls that failed.
+  const usage = { calls: 0, cacheHits: 0, failures: 0 };
+
+  // Same prompt and model → same answer: re-running enrich or a republished copy costs nothing.
+  async function cachedGemini(prompt, config) {
+    const key = createHash('sha1').update(`${config.geminiModel}\n${prompt}`).digest('hex');
+    const hit = cache?.get(key);
+    if (hit) {
+      usage.cacheHits++;
+      return hit;
+    }
+    usage.calls++;
+    try {
+      const response = await requestGemini(prompt, config);
+      cache?.set(key, config.geminiModel, response);
+      return response;
+    } catch (err) {
+      usage.failures++;
+      throw err;
+    }
+  }
+  const configFor = env => ({ ...getClassifierConfig(env), call: cachedGemini });
+
+  /**
+   * Sentiment by the profile's lexicon. Gemini (hybrid, with a key) only
+   * settles a mixed tone; otherwise the leaning side is kept.
+   */
+  async function attachSentiment(decision, { title, content, aliases = null, subject }, config) {
+    if (decision.decision === 'reject' || isEmptyLexicon(lexicon)) return decision;
+    const focus = aliases ? sentence => containsAlias(sentence, aliases) : undefined;
+    const scored = scoreSentiment({ title, content }, lexicon, { focus });
+    const detail = `sentiment rules +${scored.positive}/-${scored.negative}`;
+    const fromRules = note => ({ ...decision, sentiment: scored.sentiment, reason: `${decision.reason}; ${detail}${note}` });
+    if (scored.confident) return fromRules('');
+    if (config.mode !== 'hybrid' || !config.geminiApiKey) return fromRules(' (mixed, leaning side)');
+    try {
+      const result = parseSentimentResult(await config.call(buildSentimentPrompt(subject, title, scored.snippets, topic), config));
+      return { ...decision, sentiment: result.sentiment, source: `${decision.source || 'rules'}+gemini`,
+        reason: `${decision.reason}; ${detail} mixed; Gemini sentiment: ${result.reason}` };
+    } catch (err) {
+      log.warn(`Gemini sentiment failed for ${title}: ${err.message}`);
+      return fromRules(' (mixed, Gemini failed)');
+    }
+  }
   const negativeKeywords = normalizeList(topic.negativeTitleKeywords);
   const globalExcludes = normalizeList(profile.excludePhrases);
   const topicLabel = topic.description || 'tracked topic';
@@ -508,7 +660,7 @@ function createClassifier(profile) {
    *   - if LLM says off-topic => irrelevant
    */
   async function classifyArticle(article, targetBrandDef, brandDefs, env = process.env) {
-    const config = getClassifierConfig(env);
+    const config = configFor(env);
     const title = article.title || '';
     const content = article.content || '';
     const normalizedTitle = normalizeText(title);
@@ -532,13 +684,21 @@ function createClassifier(profile) {
     }
 
     const ruleDecision = buildRuleDecision(article, targetBrandDef, brandDefs);
+    const withSentiment = decision => {
+      const brandDef = brandDefs.find(def => def.brand === decision.brand) || targetBrandDef;
+      return attachSentiment(decision, { title, content, aliases: buildAliasList(brandDef), subject: `thuong hieu "${brandDef.brand}"` }, config);
+    };
 
     if (config.mode === 'rules') {
-      return ruleDecision.needsModel ? applyFallback(ruleDecision, targetBrandDef, config) : ruleDecision;
+      return withSentiment(ruleDecision.needsModel ? applyFallback(ruleDecision, targetBrandDef, config) : ruleDecision);
     }
 
-    if (config.mode === 'hybrid' && !ruleDecision.needsModel) {
-      return ruleDecision;
+    // A brand named once, deep in an article with no strong topic phrase (a link
+    // list, a roundup of unrelated news) is the one case rules cannot settle.
+    const weak = config.mode === 'hybrid' && ruleDecision.decision !== 'reject' && config.geminiApiKey &&
+      isWeakMention(title, content, buildAliasList(brandDefs.find(def => def.brand === ruleDecision.brand) || targetBrandDef));
+    if (config.mode === 'hybrid' && !ruleDecision.needsModel && !weak) {
+      return withSentiment(ruleDecision);
     }
 
     if (config.mode === 'hybrid' || config.mode === 'gemini') {
@@ -555,15 +715,78 @@ function createClassifier(profile) {
         return llmResult;
       } catch (err) {
         log.warn(`Gemini classification failed for ${article.url || title}: ${err.message}`);
-        return applyFallback(ruleDecision, targetBrandDef, config);
+        return withSentiment(applyFallback(ruleDecision, targetBrandDef, config));
       }
     }
 
     log.warn(`Unknown CLASSIFIER_MODE="${config.mode}", falling back to rules.`);
-    return ruleDecision.needsModel ? applyFallback(ruleDecision, targetBrandDef, config) : ruleDecision;
+    return withSentiment(ruleDecision.needsModel ? applyFallback(ruleDecision, targetBrandDef, config) : ruleDecision);
   }
 
-  return { profile, isTopicRelated, findMentionedBrands, classifyArticle };
+  /**
+   * Tin ngành không nhắc hãng nào: quy tắc chủ đề của profile, rồi Gemini
+   * xác nhận ở chế độ hybrid/gemini (từ khoá ngành xuất hiện cả trong bài lạc đề).
+   */
+  async function classifyTopic(article, env = process.env) {
+    const config = configFor(env);
+    const title = article.title || '';
+    const content = article.content || '';
+    if (!isTopicRelated(title, content)) {
+      return { ...buildIrrelevantResult(`Failed rules layer: not in ${topicLabel} context`, 'rules') };
+    }
+    const decided = topicRuleDecision(title, content);
+    const accept = reason => ({ decision: 'accept', is_topic: true, sentiment: 'neutral', confidence: 0.5, source: 'rules', reason });
+    const sentimentOf = decision => attachSentiment(decision, { title, content, subject: `nganh (${topicLabel})` }, config);
+    if (config.mode !== 'hybrid' && config.mode !== 'gemini') {
+      return sentimentOf(decided || accept(`Topic keywords of ${topicLabel} in title/body`));
+    }
+    // Hybrid: the model only sees articles the topic rules cannot settle.
+    if (config.mode === 'hybrid' && decided) return sentimentOf(decided);
+    try {
+      return parseTopicResult(await config.call(buildTopicPrompt({ ...article, content: clip(content, config) }, topic), config));
+    } catch (err) {
+      log.warn(`Gemini topic check failed for ${article.url || title}: ${err.message}`);
+      return config.reviewFallback === 'accept'
+        ? { decision: 'accept', is_topic: true, sentiment: 'neutral', confidence: 0.2, source: 'fallback',
+          reason: `Fallback accept: ${err.message}` }
+        : { ...buildIrrelevantResult(`Fallback reject: ${err.message}`, 'fallback'), is_topic: true };
+    }
+  }
+
+  /**
+   * Ước lượng từ tiêu đề RSS (chưa có thân bài) để tải trước link dễ được nhận.
+   * Chỉ dùng để xếp thứ tự: bài nhắc hãng ở thân bài vẫn được tải sau.
+   */
+  function looksRelevant(title) {
+    // Google News thêm " - Tên báo" vào cuối tiêu đề.
+    const clean = String(title || '').replace(/\s+-\s+[^-]+$/, '');
+    return findMentionedBrands({ title: clean }, profile.brands || []).length > 0 || isTopicRelated(clean, '');
+  }
+
+  function isWeakMention(title, content, aliases) {
+    if (!strongKeywords.length || containsAlias(title, aliases) || containsAlias(content.slice(0, LEAD_CHARS), aliases)) return false;
+    if (splitSentences(content).filter(sentence => containsAlias(sentence, aliases)).length > 1) return false;
+    return topicStrength({ title, content }, strongKeywords).body === 0;
+  }
+
+  /**
+   * Tin ngành theo topic.strongKeywords: cụm rõ nghĩa ở tiêu đề → nhận; nhiều
+   * lần ở thân bài và có ở đoạn mở đầu → nhận; không có cụm nào (chỉ từ chung
+   * như "dinh dưỡng") → loại. Còn lại trả null: cần Gemini (hybrid).
+   */
+  function topicRuleDecision(title, content) {
+    if (!strongKeywords.length) return null;
+    const strength = topicStrength({ title, content }, strongKeywords);
+    const accept = reason => ({ decision: 'accept', is_topic: true, sentiment: 'neutral', confidence: 0.85, source: 'rules', reason });
+    if (strength.title > 0) return accept(`Strong ${topicLabel} phrase in title`);
+    if (strength.body >= minBodyStrongHits && strength.lead > 0) {
+      return accept(`${strength.body} strong ${topicLabel} phrases, including the lead`);
+    }
+    if (strength.body === 0) return buildIrrelevantResult(`Only generic ${topicLabel} keywords, no strong phrase`, 'rules');
+    return null;
+  }
+
+  return { profile, isTopicRelated, findMentionedBrands, looksRelevant, classifyArticle, classifyTopic, usage };
 }
 
 const defaultClassifier = createClassifier(loadProfile());

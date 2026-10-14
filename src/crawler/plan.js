@@ -24,7 +24,7 @@ function windows(range, period) {
   return result;
 }
 
-function buildSearchPlan(brands, range, { publishers = DEFAULT_PUBLISHERS, web = true } = {}) {
+function buildSearchPlan(brands, range, { publishers = DEFAULT_PUBLISHERS, web = true, industryQueries = [] } = {}) {
   const tasks = new Map();
   const add = (brand, query, dateRange, channel, kind) => {
     const key = JSON.stringify([brand, query, dateRange.from, dateRange.to, channel]);
@@ -46,6 +46,13 @@ function buildSearchPlan(brands, range, { publishers = DEFAULT_PUBLISHERS, web =
         if (web) add(brand, query, year, 'web', 'publisher-year');
       }
     }
+  }
+  // Industry news names no tracked brand, so it is searched by topic phrases.
+  // RSS only, whole range and monthly: per-publisher x year x phrase would
+  // multiply the plan far beyond what these broad phrases add.
+  for (const query of [...new Set(industryQueries)]) {
+    add(null, query, range, 'rss', 'industry');
+    for (const month of windows(range, 'month')) add(null, query, month, 'rss', 'industry');
   }
   // RSS first. Web is a complementary stage even when RSS returned results.
   return [...tasks.values()].sort((a, b) => Number(a.channel === 'web') - Number(b.channel === 'web'));

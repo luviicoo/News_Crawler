@@ -57,6 +57,14 @@ module.exports = {
 
   topic: {
     description: 'kinh doanh bao hiem thuong mai tai Viet Nam',
+    // Truy vấn tin ngành (bài không cần nhắc hãng nào), chạy RSS cả khoảng + từng
+    // tháng. Viết có dấu: RSS gửi qua URL nên không gặp lỗi codepage như ô tìm kiếm.
+    queries: [
+      '"bảo hiểm nhân thọ"', '"thị trường bảo hiểm"', '"doanh nghiệp bảo hiểm nhân thọ"',
+      '"Hiệp hội Bảo hiểm Việt Nam"', '"quản lý giám sát bảo hiểm"', '"Luật Kinh doanh bảo hiểm"',
+      '"bảo hiểm liên kết đầu tư"', 'bancassurance', '"đại lý bảo hiểm"', '"doanh thu phí bảo hiểm"',
+      '"chi trả quyền lợi bảo hiểm"', '"khiếu nại bảo hiểm nhân thọ"', '"bảo hiểm sức khỏe"', 'insurtech',
+    ],
     llmRole: 'Ban la chuyen gia phan tich du lieu social listening cho nganh bao hiem tai Viet Nam.',
     llmExclusions: 'tin giai tri, the thao, y te cong, bao hiem xa hoi, bao hiem y te nha nuoc, tro cap that nghiep, hoac noise',
     // Bài phải chứa ít nhất 1 từ khóa (tiêu đề hoặc thân bài).

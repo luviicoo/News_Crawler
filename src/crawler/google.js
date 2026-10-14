@@ -622,6 +622,28 @@ async function searchGoogleNews(brand, query, options = {}) {
   }
 }
 
+// Newer Google result pages link to /goto?url=<opaque token> instead of the
+// article; the destination is only available from the redirect's Location.
+function isGoogleGotoUrl(value) {
+  try {
+    const url = new URL(value);
+    return /(^|\.)google\.[a-z.]+$/i.test(url.hostname) && url.pathname === '/goto';
+  } catch (_) {
+    return false;
+  }
+}
+
+async function followGoogleGoto(page, gotoUrl) {
+  try {
+    const response = await page.request.get(gotoUrl, { maxRedirects: 0, timeout: 15000 });
+    const location = response.headers().location || '';
+    return location ? resolveGoogleRedirect(new URL(location, gotoUrl).href) : '';
+  } catch (err) {
+    log.warn(`[WEB] Could not resolve Google result link: ${err.message}`);
+    return '';
+  }
+}
+
 async function extractWebCards(page) {
   const raw = await page.evaluate(selectors => {
     const root = selectors.resultsRoot.map(selector => document.querySelector(selector)).find(Boolean);
@@ -633,7 +655,8 @@ async function extractWebCards(page) {
   }, SELECTORS);
   const cards = new Map();
   for (const card of raw) {
-    const url = resolveGoogleRedirect(card.url);
+    let url = resolveGoogleRedirect(card.url);
+    if (isGoogleGotoUrl(url)) url = await followGoogleGoto(page, url);
     const domain = extractHostname(url);
     if (!/^https?:\/\//i.test(url) || !card.title || /(^|\.)google\.[a-z.]+$/.test(domain)) continue;
     cards.set(url, { ...card, url, publisherDomain: domain });

@@ -9,6 +9,9 @@ const { loadProfile, validateProfile, profileWarnings } = require('../src/config
 const { createClassifier } = require('../src/utils/articleClassifier');
 const { buildSearchPlan } = require('../src/crawler/plan');
 const { runCrawl } = require('../src/crawler/run');
+const { runEnrich } = require('../src/enrich/enrich');
+const { exportCsv } = require('../src/output/export');
+const { openStore } = require('../src/store/db');
 const { parseArgs, isPublishDateWithinRange } = require('../src/index');
 const { filterGoogleState, buildUserAgent } = require('../src/crawler/browser');
 const { shouldBlockRequest } = require('../src/crawler/article');
@@ -50,52 +53,59 @@ test('a data-only profile drives mention rules, exclusions and topic checks', as
   assert.equal(createClassifier({ ...bank, topic: { keywords: [] } }).isTopicRelated('Bất kỳ tiêu đề nào'), true);
 });
 
-test('multi-brand articles use the profile industry label', async t => {
+// Crawl one plan of the bank profile into a fresh store, then enrich it (rules only).
+async function crawlAndEnrich(t, { cards, fetchArticle, plan }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crawler-profile-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const classifier = createClassifier(bank);
+  const store = openStore(path.join(dir, 'news.db'));
+  t.after(() => { store.close(); fs.rmSync(dir, { recursive: true, force: true }); });
   const range = { from: '2024-01-01', to: '2024-01-31' };
-  const plan = buildSearchPlan(bank.brands.slice(0, 1), range, { publishers: bank.publishers, web: false })
-    .filter(task => task.kind !== 'publisher-year');
-  const result = await runCrawl({ brands: bank.brands.slice(0, 1), allBrands: bank.brands, industryLabel: bank.industryLabel,
-    dateRange: range, plan, outputPath: path.join(dir, 'out.csv'), statePath: path.join(dir, 'state.jsonl'),
-    reportPath: path.join(dir, 'coverage.json'), withinRange: isPublishDateWithinRange,
+  await runCrawl({ profileName: bank.name, dateRange: range, plan: plan(range), store, concurrency: 5,
     searchDelayMin: 0, searchDelayMax: 0, rssDelayMin: 0, rssDelayMax: 0 }, {
-    launchBrowser: async () => {}, closeBrowser: async () => {},
-    classifyArticle: (article, brand, brands) => classifier.classifyArticle(article, brand, brands, { CLASSIFIER_MODE: 'rules' }),
-    findMentionedBrands: classifier.findMentionedBrands,
-    searchRss: async () => [{ title: 'x', url: 'https://example.vn/a', publisherDomain: 'example.vn' }],
+    launchBrowser: async () => {}, closeBrowser: async () => {}, searchRss: async () => cards, fetchArticle,
+  });
+  const classifier = createClassifier(bank);
+  const env = { CLASSIFIER_MODE: 'rules' };
+  const stats = await runEnrich(store, { profile: bank, classifier: { ...classifier,
+    classifyArticle: (article, brand, brands) => classifier.classifyArticle(article, brand, brands, env),
+    classifyTopic: article => classifier.classifyTopic(article, env) } });
+  const outputPath = path.join(dir, 'out.csv');
+  await exportCsv(store, { profile: bank, dateRange: range, withinRange: isPublishDateWithinRange, outputPath });
+  return { stats, store, csv: fs.readFileSync(outputPath, 'utf8').trim().split('\n') };
+}
+
+test('multi-brand articles use the profile industry label', async t => {
+  const { stats, csv } = await crawlAndEnrich(t, {
+    plan: range => buildSearchPlan(bank.brands.slice(0, 1), range, { publishers: bank.publishers, web: false })
+      .filter(task => task.kind !== 'publisher-year'),
+    cards: [{ title: 'x', url: 'https://example.vn/a', publisherDomain: 'example.vn' }],
     fetchArticle: async url => ({ finalUrl: url, articleTitle: 'Alpha Bank và Beta Bank Việt Nam hợp tác tín dụng',
       publishDate: '2024-01-12T02:00:00Z', articleText: 'Ngân hàng tín dụng. '.repeat(20), alternateUrls: [] }),
   });
-  assert.equal(result.accepted_articles, 1);
-  const rows = fs.readFileSync(path.join(dir, 'out.csv'), 'utf8').trim().split('\n');
-  assert.ok(rows[1].startsWith('Ngành ngân hàng,Alpha Bank; Beta Bank,'));
-  assert.deepEqual(result.query_precision.map(({ query, results, accepted, rejected }) => ({ query, results, accepted, rejected })),
-    [{ query: '"Alpha Bank"', results: 1, accepted: 1, rejected: 0 }]);
-  assert.deepEqual(result.noisy_queries, []);
+  assert.equal(stats.accepted, 1);
+  assert.ok(csv[1].startsWith('Ngành ngân hàng,Alpha Bank; Beta Bank,'));
+  assert.deepEqual(stats.noisy_queries, []);
 });
 
-test('noisy queries are reported when hits are mostly rejected', async t => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'crawler-noisy-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const classifier = createClassifier(bank);
-  const range = { from: '2024-01-01', to: '2024-01-31' };
-  const brands = bank.brands.slice(0, 1);
-  const plan = buildSearchPlan(brands, range, { publishers: bank.publishers, web: false }).filter(task => task.kind !== 'publisher-year');
+test('industry queries keep relevant news that names no brand, and noisy queries are reported', async t => {
   const cards = Array.from({ length: 25 }, (_, index) => ({ title: 'x', url: `https://example.vn/${index}`, publisherDomain: 'example.vn' }));
-  const result = await runCrawl({ brands, allBrands: bank.brands, industryLabel: bank.industryLabel, dateRange: range, plan,
-    outputPath: path.join(dir, 'out.csv'), statePath: path.join(dir, 'state.jsonl'), reportPath: path.join(dir, 'coverage.json'),
-    withinRange: isPublishDateWithinRange, searchDelayMin: 0, searchDelayMax: 0, rssDelayMin: 0, rssDelayMax: 0, concurrency: 5 }, {
-    launchBrowser: async () => {}, closeBrowser: async () => {},
-    classifyArticle: (article, brand, brandDefs) => classifier.classifyArticle(article, brand, brandDefs, { CLASSIFIER_MODE: 'rules' }),
-    findMentionedBrands: classifier.findMentionedBrands,
-    searchRss: async () => cards,
-    fetchArticle: async url => ({ finalUrl: url, articleTitle: 'Tin thời sự không liên quan', publishDate: '2024-01-12T02:00:00Z',
-      articleText: 'Nội dung khác. '.repeat(30), alternateUrls: [] }),
+  const { stats, store, csv } = await crawlAndEnrich(t, {
+    plan: range => buildSearchPlan(bank.brands.slice(0, 1), range,
+      { publishers: bank.publishers, web: false, industryQueries: ['"tín dụng ngân hàng"'] })
+      .filter(task => task.kind !== 'publisher-year'),
+    cards: [...cards, { title: 'y', url: 'https://example.vn/industry', publisherDomain: 'example.vn' }],
+    fetchArticle: async url => (url.endsWith('/industry')
+      ? { finalUrl: url, articleTitle: 'Tín dụng ngân hàng tăng mạnh cuối năm', publishDate: '2024-01-12T02:00:00Z',
+        articleText: 'Tăng trưởng tín dụng của hệ thống ngân hàng. '.repeat(10), alternateUrls: [] }
+      : { finalUrl: url, articleTitle: 'Tin thời sự không liên quan', publishDate: '2024-01-12T02:00:00Z',
+        articleText: 'Nội dung khác. '.repeat(30), alternateUrls: [] }),
   });
-  assert.equal(result.noisy_queries.length, 1);
-  assert.equal(result.noisy_queries[0].rejected, 25);
+  // Every query returned every card; only the industry story is relevant, with no brand named.
+  assert.equal(stats.accepted, 1);
+  assert.equal(csv.length, 2);
+  assert.ok(csv[1].startsWith('Ngành ngân hàng,,Tín dụng ngân hàng tăng mạnh cuối năm,'));
+  assert.equal(store.sql("SELECT COUNT(*) AS n FROM article_labels WHERE relevance = 'rejected'").get().n, 25);
+  const noisy = stats.noisy_queries.find(group => group.query === '"Alpha Bank"');
+  assert.equal(noisy.rejected, 25);
 });
 
 test('profile loader validates fields and warns about unquoted site: queries', t => {

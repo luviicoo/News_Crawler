@@ -1,0 +1,4 @@
+2026-10-14T09:22:10.742Z [INFO] Profile: dairy-kids-vn | command: export | store: /Users/luvii/Documents/News Crawler/output/news.db
+2026-10-14T09:22:10.838Z [INFO] CSV writer initialised: /Users/luvii/Documents/News Crawler/output/dairy_kids_all_brands_20240101_20260930.csv.5490.tmp
+2026-10-14T09:22:10.892Z [INFO] CSV finalised. 1877 rows written to /Users/luvii/Documents/News Crawler/output/dairy_kids_all_brands_20240101_20260930.csv.5490.tmp
+2026-10-14T09:22:10.892Z [SUMMARY] Total articles: 1877 | Total errors: 0 | Output: /Users/luvii/Documents/News Crawler/output/dairy_kids_all_brands_20240101_20260930.csv
