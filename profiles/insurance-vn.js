@@ -27,6 +27,25 @@ function hasPrudentialVietnamMention(value, { normalizeText }) {
   return /\bprudential\b/.test(cleaned) || localParent;
 }
 
+// Drivetrain labels such as "Cầu trước (FWD)" or "FWD/AWD".
+const FWD_DRIVETRAIN = [
+  /(?:cầu trước|dẫn động(?: cầu trước)?)\s*\(?\s*FWD\s*\)?/giu,
+  /\b(?:FWD|AWD|RWD|4WD)(?:\s*\/\s*(?:FWD|AWD|RWD|4WD))+\b/gu,
+];
+
+// FWD Assurance Việt Nam (tiền thân Vietcombank Cardif) là pháp nhân khác
+// FWD Việt Nam. Bài không nhắc FWD Assurance (hay tên cũ Vietcombank Cardif/VCLI)
+// thì "FWD" là FWD Việt Nam; bài đã nhắc thì "FWD" viết tắt phía sau vẫn chỉ
+// FWD Assurance, nên chỉ tính FWD Việt Nam khi bài gọi rõ "FWD Việt Nam".
+function hasFwdVietnamMention(value, { normalizeText }) {
+  let raw = String(value).normalize('NFC');
+  for (const pattern of FWD_DRIVETRAIN) raw = raw.replace(pattern, ' ');
+  const containsAssurance = /\bFWD\s+Assurance\b|\bVietcombank[\s-]+Cardif\b/iu.test(raw) || /\bVCLI\b/u.test(raw);
+  raw = raw.replace(/\bFWD\s+Assurance\b/giu, ' ');
+  if (!/\bFWD\b/u.test(raw)) return false;
+  return !containsAssurance || /\bfwd (?:viet nam|vietnam|vn)\b/.test(normalizeText(raw));
+}
+
 module.exports = {
   name: 'insurance-vn',
   // Giữ tên file cũ (daily_all_brands.csv) để checkpoint hiện tại chạy tiếp.
@@ -73,7 +92,9 @@ module.exports = {
       'quyen loi bao hiem', 'tu van bao hiem', 'dai ly bao hiem', 'doanh nghiep bao hiem',
       'thi truong bao hiem', 'san pham bao hiem', 'insurtech',
       'sun life', 'prudential', 'manulife', 'generali', 'aia viet nam', 'chubb life',
-      'dai ichi life', 'bao viet nhan tho', 'fwd',
+      'dai ichi life', 'bao viet nhan tho', 'fwd', 'cathay life', 'hanwha life', 'fubon life',
+      'mirae asset prevoir', 'phu hung life', 'bidv metlife', 'mb life', 'shinhan life',
+      'techcom life', 'lp life',
     ],
     // Tiêu đề chứa các từ này thì loại (trừ khi negativeOverride trả true).
     negativeTitleKeywords: [
@@ -113,12 +134,15 @@ module.exports = {
       aliases: ['FWD Viet Nam', 'FWD Vietnam', 'FWD VN', 'FWD'],
       queries: ['"FWD" "bảo hiểm"', 'fwd vn tin tuc'],
       siteQuery: '"FWD" "bảo hiểm"',
-      // Drivetrain labels such as "Cầu trước (FWD)" or "FWD/AWD".
-      lookalikes: [
-        /(?:cầu trước|dẫn động(?: cầu trước)?)\s*\(?\s*FWD\s*\)?/giu,
-        /\b(?:FWD|AWD|RWD|4WD)(?:\s*\/\s*(?:FWD|AWD|RWD|4WD))+\b/gu,
-      ],
-      requirePattern: /\bFWD\b/u,
+      lookalikes: FWD_DRIVETRAIN,
+      mentionMatcher: hasFwdVietnamMention,
+    },
+    {
+      // Pháp nhân riêng (tiền thân Vietcombank Cardif), khác FWD Việt Nam.
+      brand: 'FWD Assurance Viet Nam',
+      aliases: ['FWD Assurance Viet Nam', 'FWD Assurance Vietnam', 'FWD Assurance', 'Vietcombank Cardif', 'VCLI'],
+      queries: ['"FWD Assurance"', '"Vietcombank Cardif"'],
+      siteQuery: '("FWD Assurance" OR "Vietcombank Cardif")',
     },
     {
       brand: 'Dai-ichi Life Viet Nam',
@@ -160,7 +184,12 @@ module.exports = {
     },
     {
       brand: 'Manulife Viet Nam',
-      aliases: ['Manulife Viet Nam', 'Manulife Vietnam', 'Manulife VN', 'Manulife'],
+      // Aviva Việt Nam đã chuyển nhượng cho Manulife; không dùng "Aviva" trơn
+      // vì trùng tập đoàn Aviva (Anh).
+      aliases: [
+        'Manulife Viet Nam', 'Manulife Vietnam', 'Manulife VN', 'Manulife',
+        'Aviva Viet Nam', 'Aviva Vietnam', 'Vietinbank Aviva',
+      ],
       queries: ['"Manulife" "Việt Nam"', 'manulife vn tin tuc'],
       siteQuery: '"Manulife"',
     },
@@ -169,6 +198,78 @@ module.exports = {
       aliases: ['Generali Viet Nam', 'Generali Vietnam', 'Generali VN', 'Generali'],
       queries: ['"Generali" "Việt Nam"', 'generali vn tin tuc'],
       siteQuery: '"Generali"',
+    },
+    {
+      brand: 'Mirae Asset Prevoir Viet Nam',
+      // Không dùng "Mirae Asset" trơn: trùng Chứng khoán Mirae Asset.
+      aliases: [
+        'Mirae Asset Prevoir', 'Mirae Asset Prevoir Life', 'Prevoir Viet Nam', 'Prevoir Vietnam',
+      ],
+      queries: ['"Mirae Asset Prévoir"', 'mirae asset prevoir bao hiem nhan tho'],
+      siteQuery: '"Mirae Asset Prévoir"',
+    },
+    {
+      brand: 'Cathay Life Viet Nam',
+      // Không dùng "Cathay" trơn: trùng hãng bay Cathay Pacific.
+      aliases: ['Cathay Life Viet Nam', 'Cathay Life Vietnam', 'Cathay Life', 'Bao hiem nhan tho Cathay'],
+      queries: ['"Cathay Life"', '"Bảo hiểm nhân thọ Cathay"'],
+      siteQuery: '"Cathay Life"',
+      excludePhrases: ['cathay financial', 'cathay life dai loan', 'cathay life taiwan'],
+    },
+    {
+      brand: 'Hanwha Life Viet Nam',
+      aliases: ['Hanwha Life Viet Nam', 'Hanwha Life Vietnam', 'Hanwha Life VN', 'Hanwha Life'],
+      queries: ['"Hanwha Life"', '"Hanwha Life Việt Nam"'],
+      siteQuery: '"Hanwha Life"',
+      // Đội tuyển LMHT Hàn Quốc (HLE) được báo thể thao/game nhắc thường xuyên.
+      excludePhrases: ['hanwha life esports', 'hanwha life insurance han quoc'],
+    },
+    {
+      brand: 'Fubon Life Viet Nam',
+      aliases: ['Fubon Life Viet Nam', 'Fubon Life Vietnam', 'Fubon Life', 'Bao hiem nhan tho Fubon'],
+      queries: ['"Fubon Life"', '"Bảo hiểm nhân thọ Fubon"'],
+      siteQuery: '"Fubon Life"',
+      excludePhrases: ['fubon financial', 'fubon life dai loan', 'fubon life taiwan'],
+    },
+    {
+      brand: 'Phu Hung Life',
+      // Không dùng "Phú Hưng" trơn: trùng Chứng khoán Phú Hưng và Bảo hiểm Phú Hưng (phi nhân thọ).
+      aliases: ['Phu Hung Life', 'Bao hiem nhan tho Phu Hung'],
+      queries: ['"Phú Hưng Life"', '"Bảo hiểm nhân thọ Phú Hưng"'],
+      siteQuery: '"Phú Hưng Life"',
+    },
+    {
+      brand: 'BIDV MetLife',
+      // Không dùng "MetLife" trơn: trùng tập đoàn MetLife (Mỹ) và sân MetLife Stadium.
+      aliases: ['BIDV MetLife', 'BIDV Metlife', 'MetLife Viet Nam', 'MetLife Vietnam'],
+      queries: ['"BIDV MetLife"', 'bidv metlife bao hiem'],
+      siteQuery: '"BIDV MetLife"',
+    },
+    {
+      brand: 'MB Life',
+      // Tên cũ: MB Ageas Life.
+      aliases: ['MB Life', 'MB Ageas Life', 'MB Ageas', 'MBAL'],
+      queries: ['"MB Life"', '"MB Ageas Life"'],
+      siteQuery: '"MB Life"',
+    },
+    {
+      brand: 'Shinhan Life Viet Nam',
+      // Không dùng "Shinhan" trơn: trùng Ngân hàng/Tài chính Shinhan.
+      aliases: ['Shinhan Life Viet Nam', 'Shinhan Life Vietnam', 'Shinhan Life VN', 'Shinhan Life'],
+      queries: ['"Shinhan Life"', '"Shinhan Life Việt Nam"'],
+      siteQuery: '"Shinhan Life"',
+    },
+    {
+      brand: 'Techcom Life',
+      aliases: ['Techcom Life', 'TechcomLife', 'Bao hiem nhan tho Techcom'],
+      queries: ['"Techcom Life"', '"Bảo hiểm nhân thọ Techcom"'],
+      siteQuery: '"Techcom Life"',
+    },
+    {
+      brand: 'LP Life',
+      aliases: ['LP Life', 'LPLife', 'Bao hiem nhan tho LP', 'Bao hiem nhan tho LPBank'],
+      queries: ['"LP Life"', '"Bảo hiểm nhân thọ LPBank"'],
+      siteQuery: '"LP Life"',
     },
   ],
 };

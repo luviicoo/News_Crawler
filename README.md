@@ -50,7 +50,7 @@ npm.cmd run export -- --date-from 2026-09-01 --date-to 2026-09-30
 
 Mặc định lấy 7 ngày tính cả hôm nay theo giờ Việt Nam (UTC+7). Có thể đặt `DATE_FROM` và `DATE_TO` trong `.env`; tham số dòng lệnh được ưu tiên. Ngày đầu lớn hơn ngày cuối thì tool tự đổi thứ tự.
 
-Brand, ngành, báo và mọi rule nhận diện nằm trong **profile** (`profiles/*.js`), không nằm trong code. Profile mặc định `insurance-vn` gồm Sun Life, Chubb Life, FWD, Dai-ichi Life, AIA, Bảo Việt Nhân Thọ, Prudential, Manulife và Generali. Profile `dairy-kids-vn` (ngành sữa trẻ em) gồm Milo, Vinamilk, TH true MILK, LOF (Kun), Nutifood, FrieslandCampina, Abbott, Nestlé NAN, Mead Johnson, Nutricare và Vitadairy. Chọn profile bằng `--profile <tên>` hoặc `PROFILE`.
+Brand, ngành, báo và mọi rule nhận diện nằm trong **profile** (`profiles/*.js`), không nằm trong code. Profile mặc định `insurance-vn` gồm 20 công ty bảo hiểm nhân thọ (Sun Life, Chubb Life, FWD, FWD Assurance, Dai-ichi Life, AIA, Bảo Việt Nhân Thọ, Prudential, Manulife, Generali, Mirae Asset Prévoir, Cathay Life, Hanwha Life, Fubon Life, Phú Hưng Life, BIDV MetLife, MB Life, Shinhan Life, Techcom Life, LP Life). Profile `dairy-kids-vn` (ngành sữa trẻ em) gồm Nestlé (MILO, NAN), Vinamilk, TH true MILK, LOF Kun, Sữa Ba Vì, Nutifood, FrieslandCampina, Abbott, Mead Johnson, Nutricare, Vitadairy, Yakult, Meiji, Morinaga và Vinasoy; cột `mentioned_products` ghi dòng sản phẩm được nhắc. Chọn profile bằng `--profile <tên>` hoặc `PROFILE`.
 
 ### Phase 1: crawl
 
@@ -209,11 +209,12 @@ Mỗi dự án theo dõi (một ngành hoặc một nhóm brand) là một file 
 
 Xem nhanh bằng `npm.cmd run status` hoặc mở bằng công cụ SQLite bất kỳ (DB Browser for SQLite…).
 
-**CSV** UTF-8 có BOM, ví dụ `output/prudential_viet_nam_20180101_20260930.csv`. 10 cột đầu giữ như bản cũ:
+**CSV** UTF-8 có BOM, ví dụ `output/prudential_viet_nam_20180101_20260930.csv`. Cột `mentioned_products` nằm ngay sau `brand`:
 
 | Cột | Nội dung |
 | --- | --- |
 | `brand` | Thương hiệu, hoặc nhãn ngành nếu bài nhắc từ 2 hãng / là tin ngành |
+| `mentioned_products` | Mọi sản phẩm được nhắc (khai báo ở `products` của từng hãng trong profile), phân cách bằng `; `. Tính lại mỗi lần export |
 | `mentioned_brands` | Các hãng được nhắc, phân cách bằng `; ` (trống với tin ngành không nhắc hãng) |
 | `article_title`, `article_url` | Tiêu đề, URL thật |
 | `publisher_domain`, `publisher_homepage` | Báo |

@@ -94,6 +94,14 @@ module.exports = {
       // (Không bắt buộc) pháp nhân trùng tên của riêng brand này. Bị xóa trước khi
       // dò; nằm trong tiêu đề thì loại bài khi đang tìm cho brand này.
       excludePhrases: ['quy vinamilk'],
+      // (Không bắt buộc) Sản phẩm cần theo dõi: tên ghi vào cột mentioned_products,
+      // aliases là các cách viết trong bài. Alias sản phẩm cũng được tính là nhắc
+      // brand, nên phải đủ riêng (ví dụ "sua chua Vinamilk", không phải "sua chua").
+      // Alias dài khớp trước: "Yomilk dau" không tính thêm cho "Yomilk".
+      products: [
+        { name: 'Yomilk', aliases: ['Yomilk'] },
+        { name: 'Sữa chua ăn Vinamilk', aliases: ['sua chua an Vinamilk', 'sua chua Vinamilk'] },
+      ],
     },
     {
       brand: 'TH true MILK',

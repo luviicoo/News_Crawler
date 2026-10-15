@@ -2,7 +2,7 @@
 
 /**
  * Xuất CSV từ store: bài đã được enrich nhận cho profile, lọc theo khoảng
- * ngày (giờ Việt Nam) và hãng. 10 cột đầu giữ như bản cũ cho pipeline phía sau.
+ * ngày (giờ Việt Nam) và hãng. Cột sản phẩm nằm ngay sau cột brand.
  *
  * - Lịch sử: ghi lại cả file (qua file tạm rồi đổi tên).
  * - Daily: giữ các dòng đã có trong file (kể cả file 10 cột cũ), chỉ thêm bài
@@ -15,6 +15,7 @@ const { readCsvFile } = require('./csvRead');
 const { buildHomepage } = require('../parser/urlParser');
 const { formatDateVN } = require('../parser/dateParser');
 const { isBlocked } = require('../crawler/sources');
+const { findMentionedProducts } = require('../utils/articleClassifier');
 const log = require('./logger');
 
 const CELL_LIMIT = 32000;
@@ -63,12 +64,15 @@ function selectRows(store, { profile, brands, dateRange, withinRange }) {
     // A single-brand export keeps that brand's rows and industry rows naming it.
     if (!allSelected && !selected.has(record.label) && !mentioned.some(brand => selected.has(brand))) continue;
     const [content, content2] = splitContent(record.body_text);
+    // Computed from the stored text, so a profile's new products apply to old articles too.
+    const productBrands = profile.brands.filter(def => mentioned.includes(def.brand) || def.brand === record.label);
+    const products = findMentionedProducts({ title: record.title, content: record.body_text }, productBrands);
     rows.push({
       brand: record.label, mentioned_brands: mentioned.join('; '), article_title: record.title,
       article_url: record.url, publisher_domain: record.publisher_domain,
       publisher_homepage: buildHomepage(record.publisher_domain), publish_date: formatDateVN(record.publish_date),
       sentiment: record.sentiment || 'neutral', classification_source: record.classification_source || 'rules',
-      article_id: record.article_id, author: record.author, section: record.section,
+      article_id: record.article_id, mentioned_products: products.join('; '), author: record.author, section: record.section,
       tags: JSON.parse(record.tags_json || '[]').join('; '), sapo: record.sapo, is_pr: record.is_pr ? 'yes' : 'no',
       pr_signals: JSON.parse(record.pr_signals_json || '[]').join('; '), republished_of: record.republished_of,
       source_credit: record.source_credit, content, content_2: content2,

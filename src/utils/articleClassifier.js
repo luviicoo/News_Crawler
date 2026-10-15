@@ -52,9 +52,33 @@ function buildAliasList(brandDef) {
   const rawAliases = [
     brandDef.brand,
     ...(Array.isArray(brandDef.aliases) ? brandDef.aliases : []),
+    // A product name identifies its brand too.
+    ...(Array.isArray(brandDef.products) ? brandDef.products.flatMap(product => product.aliases) : []),
   ];
 
   return [...new Set(rawAliases.map(normalizeText).filter(Boolean))];
+}
+
+/**
+ * Products of the given brands named in the article's title/body, in profile
+ * order. Longer aliases are matched first and consumed, so "TOPKID sữa chua
+ * uống phô mai" counts once for that product, not also for "TOPKID sữa chua uống".
+ * @returns {string[]} product names
+ */
+function findMentionedProducts(article, brandDefs) {
+  let text = ` ${normalizeText(`${article.title || ''} ${article.content || ''}`)} `;
+  const products = brandDefs.flatMap(brandDef => brandDef.products || []);
+  const aliases = products
+    .flatMap(product => product.aliases.map(alias => ({ product, alias: normalizeText(alias) })))
+    .filter(({ alias }) => alias)
+    .sort((a, b) => b.alias.length - a.alias.length);
+  const found = new Set();
+  for (const { product, alias } of aliases) {
+    if (!text.includes(` ${alias} `)) continue;
+    found.add(product);
+    text = text.split(` ${alias} `).join(' | ');
+  }
+  return products.filter(product => found.has(product)).map(product => product.name);
 }
 
 function containsAlias(text, aliases) {
@@ -800,6 +824,7 @@ module.exports = {
   buildRuleDecision,
   getClassifierConfig,
   findMatchingBrands,
+  findMentionedProducts,
   analyzeWithLLM,
   createClassifier,
   isTopicRelated: defaultClassifier.isTopicRelated,

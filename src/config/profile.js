@@ -76,6 +76,15 @@ function validateProfile(profile, file) {
     if (def.mentionMatcher !== undefined && typeof def.mentionMatcher !== 'function') {
       fail(`${where}: "mentionMatcher" must be a function`);
     }
+    if (def.products !== undefined && !Array.isArray(def.products)) fail(`${where}: "products" must be a list`);
+    const productNames = new Set();
+    for (const [productIndex, product] of (def.products || []).entries()) {
+      const at = `${where}.products[${productIndex}]`;
+      if (typeof product?.name !== 'string' || !product.name.trim()) fail(`${at}: "name" is required`);
+      if (productNames.has(product.name)) fail(`${at}: duplicate product name "${product.name}"`);
+      productNames.add(product.name);
+      if (!isStringList(product.aliases) || !product.aliases.length) fail(`${at}: "aliases" must be a non-empty list`);
+    }
   }
   return profile;
 }

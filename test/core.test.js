@@ -209,7 +209,7 @@ test('artifact module writes UTF-8 BOM CSV and creates stable slugs', async (con
   const content = fs.readFileSync(outputPath, 'utf8');
   assert.equal(content.charCodeAt(0), 0xFEFF);
   assert.match(content, /"Tiêu đề, có dấu phẩy"/);
-  assert.match(content.split('\n')[0], /^\uFEFFbrand,mentioned_brands,article_title,article_url,publisher_domain,publisher_homepage,publish_date,sentiment,classification_source,article_id,/);
+  assert.match(content.split('\n')[0], /^\uFEFFbrand,mentioned_products,mentioned_brands,article_title,article_url,publisher_domain,publisher_homepage,publish_date,sentiment,classification_source,article_id,/);
   assert.match(content.split('\n')[0], /,content,content_2$/);
   assert.equal(slugify('Bảo Việt Nhân Thọ'), 'bao_viet_nhan_tho');
 });

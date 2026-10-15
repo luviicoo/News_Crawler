@@ -6,9 +6,9 @@
  * Produces a UTF-8 BOM-encoded CSV so Vietnamese text displays correctly when
  * opened in Microsoft Excel on Windows.
  *
- * Column order (fixed; the first ten columns are read by downstream pipelines):
- *   brand | mentioned_brands | article_title | article_url | publisher_domain | publisher_homepage | publish_date |
- *   sentiment | classification_source | article_id | author | section | tags | sapo | is_pr | pr_signals |
+ * Column order (fixed):
+ *   brand | mentioned_products | mentioned_brands | article_title | article_url | publisher_domain | publisher_homepage |
+ *   publish_date | sentiment | classification_source | article_id | author | section | tags | sapo | is_pr | pr_signals |
  *   republished_of | source_credit | content | content_2
  *
  * Usage:
@@ -28,6 +28,7 @@ const BOM = '\uFEFF';
 // Column definitions in output order
 const COLUMNS = [
   'brand',                // tên hãng, hoặc "Ngành bảo hiểm" khi bài nhắc từ 2 hãng
+  'mentioned_products',   // sản phẩm (khai báo trong profile) của các hãng được nhắc, phân cách bằng "; "
   'mentioned_brands',     // các hãng được nhắc trong tiêu đề/thân bài, phân cách bằng "; "
   'article_title',
   'article_url',
