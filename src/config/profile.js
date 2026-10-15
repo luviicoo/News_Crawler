@@ -32,6 +32,7 @@ function validateProfile(profile, file) {
     fail('"publishers" must be a list of domains such as vnexpress.net');
   }
   if (!isStringList(profile.excludePhrases || [])) fail('"excludePhrases" must be a list of strings');
+  if (!isStringList(profile.captchaDomains || [])) fail('"captchaDomains" must be a list of domains or suffixes such as .vn');
   const topic = profile.topic || {};
   for (const key of ['keywords', 'negativeTitleKeywords', 'queries']) {
     if (!isStringList(topic[key] || [])) fail(`"topic.${key}" must be a list of strings`);

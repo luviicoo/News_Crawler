@@ -1,6 +1,6 @@
 # Tình trạng tool kéo báo
 
-Cập nhật 14/10/2026. Hướng dẫn lệnh và cấu hình tại [README.md](README.md).
+Cập nhật 15/10/2026. Hướng dẫn lệnh và cấu hình tại [README.md](README.md).
 
 ## So với PR-article-scraper cũ
 
@@ -27,8 +27,11 @@ Cập nhật 14/10/2026. Hướng dẫn lệnh và cấu hình tại [README.md]
 
 - Google News và Google Web không phải kho lưu trữ đầy đủ của từng báo. Hoàn tất kế hoạch không bảo đảm mọi bài từng xuất bản đều đã được lập chỉ mục.
 - Giải mã link Google News bằng HTTP dùng API nội bộ của Google (`batchexecute`). Nếu Google đổi API, tool mở link bằng trình duyệt. Khi Google chặn (HTTP 429), trình duyệt cũng không mở được vì dùng cùng API, nên link Google News được hoãn 10 phút (gấp đôi mỗi lần còn bị chặn, tối đa 60 phút) trong khi tìm kiếm và các link khác vẫn chạy; giải mã cách nhau `GN_DECODE_DELAY_MS` để hạn chế bị chặn.
+- Đo thực tế (14–15/10/2026, một IP): giải mã 3 link/giây bị chặn sau 13 phút, 1 link/giây bị chặn sau khoảng 50 phút; mỗi lần chặn kéo dài nhiều giờ. Mặc định hiện là 2 giây/link, chưa chạy đủ lâu để biết có tránh được chặn. IP VPN (datacenter) bị chặn nhanh hơn và gặp CAPTCHA ở báo nhiều hơn.
 - Trang cần JavaScript hoặc có chống bot vẫn phải mở bằng trình duyệt.
 - Google Web có thể bị CAPTCHA. Tool chờ xác thực thủ công và giữ truy vấn chưa xong để chạy tiếp; không tự giải CAPTCHA.
+- Google Web cho brand có tên quốc tế (Milo) trả về chủ yếu trang bán hàng nước ngoài, và đòi CAPTCHA khoảng 10–15 phút/lần. Cửa sổ CAPTCHA của trang báo chỉ mở cho `captchaDomains` của profile (mỗi báo một lần mỗi lượt); trang khác bị bỏ qua.
+- Trình duyệt sập giữa lượt thì lượt dừng (tiến độ vẫn lưu); cần chạy lại cùng lệnh.
 - Bài chết link, bị chặn hoặc thiếu ngày đăng được ghi là chưa xác minh, không tự gán ngày.
 - Dấu hiệu PR dựa trên nhãn/URL phổ biến của báo Việt Nam. Bài PR không ghi nhãn sẽ không được nhận ra; báo dùng nhãn riêng cần khai báo `prSignals` trong profile.
 - Tác giả/chuyên mục/tag/sapo phụ thuộc HTML từng báo; có báo không có các trường này.

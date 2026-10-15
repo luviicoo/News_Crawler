@@ -197,6 +197,21 @@ test('Google News links wait out a decoding throttle while other URLs are read, 
   assert.equal(reads.filter(url => url.includes('news.google.com')).length, 1); // Skipped, not read, while throttled.
 });
 
+test('an article of a publisher skipped after an unsolved CAPTCHA keeps its status and is not retried in the run', async t => {
+  const options = setup(t);
+  options.plan = options.plan.filter(task => task.channel === 'rss').slice(0, 2);
+  let reads = 0;
+  const deps = { launchBrowser: async () => {}, closeBrowser: async () => {},
+    searchRss: async () => [card('guarded')],
+    fetchArticle: async () => { reads++; return { deferred: 'captcha', error: 'Publisher CAPTCHA not solved this run' }; },
+  };
+  const result = await runCrawl(options, deps);
+  assert.equal(reads, 1);
+  const row = options.store.sql("SELECT status, attempts FROM discovered_urls WHERE url LIKE '%guarded%'").get();
+  assert.deepEqual({ ...row }, { status: 'pending', attempts: 0 });
+  assert.equal(result.unresolved_articles.length, 1);
+});
+
 test('direct URLs are read first, then Google News links whose RSS title looks relevant', async t => {
   const options = setup(t);
   options.plan = options.plan.filter(task => task.channel === 'rss').slice(0, 1);
@@ -212,6 +227,12 @@ test('direct URLs are read first, then Google News links whose RSS title looks r
   await runCrawl(options, deps);
   assert.deepEqual(reads.map(url => (url.includes('CBMiMatch') ? 'match' : url.includes('CBMiOther') ? 'other' : 'direct')),
     ['direct', 'match', 'other']);
+  // A URL that already failed goes after every untried one.
+  options.store.sql("UPDATE discovered_urls SET status = 'failed', attempts = 1 WHERE url LIKE '%CBMiOther%'").run();
+  options.store.sql("UPDATE discovered_urls SET status = 'pending', attempts = 0 WHERE url LIKE '%direct%'").run();
+  reads.length = 0;
+  await runCrawl(options, deps);
+  assert.deepEqual(reads.map(url => (url.includes('CBMiOther') ? 'retry' : 'new')), ['new', 'retry']);
 });
 
 test('RSS titles of tracked brands or the topic look relevant, after the publisher suffix is removed', () => {

@@ -17,7 +17,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 // launched from a different working directory after the folder is moved.
 require('dotenv').config({ path: path.join(PROJECT_ROOT, '.env') });
 const { loadProfile, profileWarnings } = require('./config/profile');
-const { launchBrowser, closeBrowser } = require('./crawler/browser');
+const { launchBrowser, closeBrowser, skippedSites, setCaptchaDomains } = require('./crawler/browser');
 const { searchGoogleNewsRss, searchGoogleWeb, getSearchStats, resetSearchStats } = require('./crawler/google');
 const { createArticleFetcher } = require('./crawler/fetcher');
 const { createClassifier, normalizeText } = require('./utils/articleClassifier');
@@ -209,11 +209,12 @@ async function main() {
       }
       return;
     }
+    setCaptchaDomains(profile.captchaDomains);
     const fetcher = createArticleFetcher({
       httpPerDomain: envInt('HTTP_PER_DOMAIN', 2, 1, 20),
       browserConcurrency: envInt('ARTICLE_CONCURRENCY', 3, 1, 20),
       decodeConcurrency: envInt('GN_DECODE_CONCURRENCY', 2, 1, 10),
-      decodeIntervalMs: envInt('GN_DECODE_DELAY_MS', 1000, 0, 60000),
+      decodeIntervalMs: envInt('GN_DECODE_DELAY_MS', 2000, 0, 60000),
       decodeCooldownMs: envInt('GN_DECODE_COOLDOWN_MS', 600000, 60000, 3600000),
       decodeStateFile: `${options.storePath}.gn-decode.json`,
       prSignals: profile.prSignals,
@@ -236,6 +237,10 @@ async function main() {
         looksRelevant: createClassifier(profile).looksRelevant,
         searchRss: searchGoogleNewsRss, searchWeb: searchGoogleWeb, getSearchStats,
       });
+      const skipped = skippedSites();
+      if (skipped.length) {
+        log.health(`WARN CAPTCHA not solved on ${skipped.join(', ')}; their articles stay pending for the next run.`);
+      }
       log.info(`Crawl: ${result.fetched_this_run} new articles stored; page reads: ${result.fetch_methods.http || 0} over HTTP, ` +
         `${result.fetch_methods.browser || 0} in the browser; ${result.fetched_articles} articles in this plan.`);
       log.health(`Coverage: ${result.coverage_checks_complete ? 'planned checks finished' : 'INCOMPLETE'}; ${result.unresolved_queries.length} unfinished/limited queries; ${result.unresolved_articles.length} unverified articles; ${result.saturated_day_queries.length} saturated RSS day queries.`);

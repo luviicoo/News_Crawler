@@ -9,7 +9,7 @@
  * fetchArticle() là nhánh trình duyệt, dùng khi tải HTTP không đủ.
  */
 
-const { newArticlePage, closeArticlePage, verifyInPopup } = require('./browser');
+const { newArticlePage, closeArticlePage, verifySite } = require('./browser');
 const { isCaptchaPage } = require('./captcha');
 const { extractPublishDate } = require('../parser/dateParser');
 const { resolveGoogleRedirect } = require('../parser/urlParser');
@@ -342,9 +342,9 @@ async function fetchArticle(url, { rssPublishDate = '', prSignals } = {}) {
       const targetUrl = resolveGoogleRedirect(url) || url;
       if (targetUrl !== url) log.info(`[URL] Unwrapped article URL: ${url} -> ${targetUrl}`);
       await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
-      if (await isCaptchaPage(page) && !(await verifyInPopup(page, isCaptchaPage))) {
-        // Skip unresolved challenges without reopening the same popup on retry.
-        return failure(page.url(), 'CAPTCHA unresolved');
+      if (await isCaptchaPage(page) && !(await verifySite(page, isCaptchaPage))) {
+        // Left as it was: the publisher is skipped for this run and read again by the next one.
+        return { ...failure(page.url(), 'CAPTCHA unresolved'), deferred: 'captcha' };
       }
       await waitForGoogleNewsWrapperRedirect(page, PAGE_TIMEOUT);
 
@@ -356,7 +356,7 @@ async function fetchArticle(url, { rssPublishDate = '', prSignals } = {}) {
         finalUrl = page.url();
       }
       if (await isCaptchaPage(page)) {
-        if (!(await verifyInPopup(page, isCaptchaPage))) return failure(page.url(), 'CAPTCHA unresolved');
+        if (!(await verifySite(page, isCaptchaPage))) return { ...failure(page.url(), 'CAPTCHA unresolved'), deferred: 'captcha' };
         finalUrl = page.url();
       }
       const canonicalFinalUrl = resolveGoogleRedirect(finalUrl) || finalUrl;

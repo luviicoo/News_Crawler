@@ -23,6 +23,7 @@ const fs     = require('fs');
 const { chromium: chromiumExtra } = require('playwright-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const log    = require('../output/logger');
+const { createSiteGate } = require('./siteGate');
 
 // Đăng ký stealth plugin (chỉ cần 1 lần)
 chromiumExtra.use(StealthPlugin());
@@ -193,6 +194,10 @@ function verifyInPopup(page, isChallengePage) {
   return task;
 }
 
+// One verification window per publisher; a publisher left unverified is skipped
+// for the rest of the run instead of reopening a window for each of its articles.
+const siteGate = createSiteGate(verifyInPopup);
+
 // ─── Lưu session sau mỗi search ──────────────────────────────────────────────
 
 /**
@@ -272,6 +277,10 @@ module.exports = {
   saveGoogleSession,
   clearGoogleSession,
   verifyInPopup,
+  verifySite: siteGate.verifySite,
+  isSiteSkipped: siteGate.isSkipped,
+  skippedSites: siteGate.skippedSites,
+  setCaptchaDomains: siteGate.setPromptDomains,
   newArticlePage,
   closeArticlePage,
   newPage,

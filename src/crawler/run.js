@@ -95,9 +95,10 @@ async function runCrawl(options, deps) {
       finish('failed', { error: err.message });
       return;
     }
-    // Left as it was in the store: read again once Google lifts the throttle.
+    // Left as it was in the store. A Google throttle lifts within the run, so the link
+    // is read again after the cooldown; a skipped publisher CAPTCHA waits for the next run.
     if (info.deferred) {
-      processedThisRun.delete(row.url_key);
+      if (info.deferred !== 'captcha') processedThisRun.delete(row.url_key);
       return;
     }
     const fetchMethod = info.fetchMethod || null;
@@ -153,7 +154,8 @@ async function runCrawl(options, deps) {
 
   // Order: URLs needing no Google News decoding, then links whose RSS title looks
   // relevant, then the rest, so a throttle or stop costs the least useful links.
-  const priority = row => (!articleIdOf(row.url) ? 0 : deps.looksRelevant?.(row.rss_title) ? 1 : 2);
+  // URLs that already failed (often slow browser reads) are retried last.
+  const priority = row => (row.attempts > 0 ? 3 : !articleIdOf(row.url) ? 0 : deps.looksRelevant?.(row.rss_title) ? 1 : 2);
 
   async function drain() {
     const pending = unprocessed()

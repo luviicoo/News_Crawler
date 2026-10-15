@@ -35,6 +35,10 @@ module.exports = {
     'tienphong.vn', 'suckhoedoisong.vn', 'vietnamplus.vn', 'afamily.vn',
   ],
 
+  // Chỉ mở cửa sổ CAPTCHA cho báo Việt Nam: tìm Google Web trả về nhiều trang bán
+  // hàng nước ngoài (Milo bán ở nhiều nước), không đáng làm phiền người dùng.
+  captchaDomains: ['.vn', 'brandsvietnam.com', 'thitruongtaichinhtiente.vn'],
+
   topic: {
     description: 'kinh doanh sua va dinh duong tre em tai Viet Nam',
     llmRole: 'Ban la chuyen gia phan tich du lieu social listening cho nganh sua tre em tai Viet Nam.',

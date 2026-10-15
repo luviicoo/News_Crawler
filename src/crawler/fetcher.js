@@ -9,6 +9,7 @@
 
 const pLimit = require('p-limit');
 const { extractArticle, fetchArticle: fetchWithBrowser, isGoogleNewsWrapperUrl } = require('./article');
+const { isSiteSkipped: siteSkippedThisRun } = require('./browser');
 const { createStaticPage, fetchHtml } = require('./httpFetch');
 const { createGoogleNewsDecoder } = require('./googleNewsDecode');
 const { isCaptchaPage } = require('./captcha');
@@ -25,6 +26,7 @@ function createArticleFetcher({
   prSignals,
   ensureBrowser = async () => {},
   browserFetch = fetchWithBrowser,
+  isSiteSkipped = siteSkippedThisRun,
   fetchImpl = fetch,
   decodeIntervalMs = 0,
   decodeCooldownMs,
@@ -44,6 +46,11 @@ function createArticleFetcher({
 
   async function fetchArticle(url, { rssPublishDate = '', ensureBrowser: ensure = ensureBrowser } = {}) {
     const viaBrowser = (target, date, why) => browserLimit(async () => {
+      // A publisher whose CAPTCHA was not solved this run is not opened again until the next run.
+      if (isSiteSkipped(target)) {
+        return { finalUrl: target, articleTitle: '', articleText: '', publishDate: null, deferred: 'captcha',
+          error: 'Publisher CAPTCHA not solved this run', canonicalUrl: '', ogUrl: '', alternateUrls: [] };
+      }
       log.info(`[FETCH] Browser fallback (${why}): ${target}`);
       await ensure();
       stats.browser++;
@@ -57,7 +64,7 @@ function createArticleFetcher({
       // The browser page calls the same Google endpoint, so it fails too while Google throttles.
       if (!decoded && decoder.isThrottled?.()) {
         stats.deferred++;
-        return { finalUrl: url, articleTitle: '', articleText: '', publishDate: null, deferred: true,
+        return { finalUrl: url, articleTitle: '', articleText: '', publishDate: null, deferred: 'throttle',
           error: 'Google News link decoding throttled (HTTP 429); read after the cooldown',
           canonicalUrl: '', ogUrl: '', alternateUrls: [] };
       }

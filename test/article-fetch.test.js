@@ -155,7 +155,7 @@ test('throttled Google News links are deferred instead of opened in the browser'
     browserFetch: async target => { browserReads.push(target); return {}; },
   });
   const result = await fetcher.fetchArticle('https://news.google.com/rss/articles/CBMiNO?oc=5');
-  assert.equal(result.deferred, true);
+  assert.equal(result.deferred, 'throttle');
   assert.equal(browserReads.length, 0);
   assert.equal(fetcher.isDecodeThrottled(), true);
   assert.equal(fetcher.stats.deferred, 1);
@@ -190,4 +190,58 @@ test('articles are read over HTTP and fall back to the browser only when HTTP is
   assert.equal(browserReads.length, 4);
   assert.equal(ensured, 4);
   assert.deepEqual({ http: fetcher.stats.http, browser: fetcher.stats.browser }, { http: 2, browser: 4 });
+});
+
+test('a publisher CAPTCHA opens one window per site; an unsolved site is skipped for the rest of the run', async () => {
+  const { createSiteGate } = require('../src/crawler/siteGate');
+  const page = url => ({ url: () => url, isClosed: () => false, reload: async () => {} });
+  let windows = 0;
+  let solve;
+  const gate = createSiteGate(() => { windows++; return new Promise(resolve => { solve = resolve; }); });
+  const challenged = async () => false; // Pages pass after the reload.
+
+  // Two articles of the same site: one window, the second waits for its result.
+  const first = gate.verifySite(page('https://www.a.vn/1'), challenged);
+  const second = gate.verifySite(page('https://a.vn/2'), challenged);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(windows, 1);
+  solve(true);
+  assert.deepEqual(await Promise.all([first, second]), [true, true]);
+
+  // Unsolved: the site is skipped without another window; other sites still get one.
+  const unsolved = gate.verifySite(page('https://b.vn/1'), challenged);
+  await new Promise(resolve => setImmediate(resolve));
+  solve(false);
+  assert.equal(await unsolved, false);
+  assert.equal(await gate.verifySite(page('https://b.vn/2'), challenged), false);
+  assert.equal(windows, 2);
+  assert.equal(gate.isSkipped('https://www.b.vn/3'), true);
+  assert.equal(gate.isSkipped('https://a.vn/3'), false);
+  assert.deepEqual(gate.skippedSites(), ['b.vn']);
+
+  // Articles of a skipped site are deferred without opening the browser.
+  const browserReads = [];
+  const fetcher = createArticleFetcher({
+    fetchImpl: async () => new Response('denied', { status: 403 }),
+    isSiteSkipped: gate.isSkipped,
+    browserFetch: async target => { browserReads.push(target); return {}; },
+  });
+  const result = await fetcher.fetchArticle('https://b.vn/4');
+  assert.equal(result.deferred, 'captcha');
+  assert.equal(browserReads.length, 0);
+});
+
+test('CAPTCHA windows open only for the profile captcha domains', async () => {
+  const { createSiteGate, matchesDomains } = require('../src/crawler/siteGate');
+  assert.equal(matchesDomains('danviet.vn', ['.vn']), true);
+  assert.equal(matchesDomains('news.brandsvietnam.com', ['brandsvietnam.com']), true);
+  assert.equal(matchesDomains('catchme.lk', ['.vn', 'brandsvietnam.com']), false);
+  let windows = 0;
+  const gate = createSiteGate(async () => { windows++; return true; });
+  gate.setPromptDomains(['.vn']);
+  const page = url => ({ url: () => url, isClosed: () => false, reload: async () => {} });
+  assert.equal(await gate.verifySite(page('https://catchme.lk/p/milo'), async () => true), false);
+  assert.equal(gate.isSkipped('https://catchme.lk/other'), true);
+  assert.equal(await gate.verifySite(page('https://danviet.vn/a'), async () => false), true);
+  assert.equal(windows, 1);
 });

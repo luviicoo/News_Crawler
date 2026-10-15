@@ -1,0 +1,389 @@
+2026-10-14T10:53:28.224Z [INFO] Profile: dairy-kids-vn | command: all | store: /Users/luvii/Documents/News Crawler/output/news.db
+2026-10-14T10:53:28.224Z [INFO] Date range: 2024-01-01 -> 2026-09-30 | brands: Milo, Vinamilk, TH true MILK, LOF (Kun), Nutifood, FrieslandCampina Viet Nam, Abbott, Nestle NAN, Mead Johnson, Nutricare, Vitadairy
+2026-10-14T10:53:28.224Z [INFO] Planned RSS queries: 2604 (industry: 1462); complementary web queries: 825
+2026-10-14T10:53:30.997Z [DATE] Found publish_date via meta article:published_time: 2025-03-31T09:57:33.000Z
+2026-10-14T10:53:31.005Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/nestle-milo-dong-hanh-cung-giai-chay-lau-doi-nhat-viet-nam-39848.html
+2026-10-14T10:53:31.005Z [INFO] Launching Chromium stealth (headless=true) …
+2026-10-14T10:53:31.261Z [INFO] Loading saved Google session (cookies)…
+2026-10-14T10:53:31.434Z [INFO] Browser + Google context ready.
+2026-10-14T10:53:31.434Z [FETCH] Opening article: https://mekongasean.vn/nestle-milo-dong-hanh-cung-giai-chay-lau-doi-nhat-viet-nam-39848.html
+2026-10-14T10:53:31.768Z [DATE] Found publish_date via RSS pubDate: 2025-08-01T07:00:00.000Z
+2026-10-14T10:53:31.774Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://baohungyen.vn/u11-hung-yen-vo-dich-giai-bong-da-nhi-dong-toan-quoc-cup-nestle-milo-2025-3183283.html
+2026-10-14T10:53:31.774Z [FETCH] Opening article: https://baohungyen.vn/u11-hung-yen-vo-dich-giai-bong-da-nhi-dong-toan-quoc-cup-nestle-milo-2025-3183283.html
+2026-10-14T10:53:32.176Z [DATE] Found publish_date via meta article:published_time: 2025-03-31T09:57:33.000Z
+2026-10-14T10:53:32.553Z [DATE] Found publish_date via RSS pubDate: 2025-08-01T07:00:00.000Z
+2026-10-14T10:53:35.065Z [DATE] Found publish_date via JSON-LD datePublished: 2024-08-02T20:16:01.000Z
+2026-10-14T10:53:35.070Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://diendandoanhnghiep.vn/chien-dich-tiep-thi-y-nghia-cua-nestle-milo-10139887.html
+2026-10-14T10:53:35.070Z [FETCH] Opening article: https://diendandoanhnghiep.vn/chien-dich-tiep-thi-y-nghia-cua-nestle-milo-10139887.html
+2026-10-14T10:53:35.605Z [DATE] Found publish_date via JSON-LD datePublished: 2024-08-02T20:16:01.000Z
+2026-10-14T10:53:36.350Z [DATE] Found publish_date via JSON-LD datePublished: 2026-07-23T08:24:01.000Z
+2026-10-14T10:53:36.356Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://baohaiphong.vn/boc-tham-va-xep-lich-thi-dau-vong-chung-ket-giai-bong-da-nhi-dong-toan-quoc-cup-nestle-milo-2026-548679.html
+2026-10-14T10:53:36.356Z [FETCH] Opening article: https://baohaiphong.vn/boc-tham-va-xep-lich-thi-dau-vong-chung-ket-giai-bong-da-nhi-dong-toan-quoc-cup-nestle-milo-2026-548679.html
+2026-10-14T10:53:36.708Z [DATE] Found publish_date via JSON-LD datePublished: 2026-07-23T08:24:01.000Z
+2026-10-14T10:53:38.729Z [DATE] Found publish_date via meta pubdate: 2025-05-29T13:09:00.000Z
+2026-10-14T10:53:38.735Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://congan.com.vn/an-ninh-kinh-te/chuyen-ho-so-vu-viec-nestle-milo-co-dau-hieu-lua-doi-nguoi-tieu-dung-sang-co-quan-dieu-tra_178629.html
+2026-10-14T10:53:38.735Z [FETCH] Opening article: https://congan.com.vn/an-ninh-kinh-te/chuyen-ho-so-vu-viec-nestle-milo-co-dau-hieu-lua-doi-nguoi-tieu-dung-sang-co-quan-dieu-tra_178629.html
+2026-10-14T10:53:39.546Z [DATE] Found publish_date via meta pubdate: 2025-05-29T13:09:00.000Z
+2026-10-14T10:53:42.324Z [DATE] Found publish_date via meta article:published_time: 2025-06-15T12:46:00.000Z
+2026-10-14T10:53:42.330Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://baophutho.vn/u11-phu-tho-gianh-ve-den-vong-chung-ket-giai-bong-da-nhi-dong-toan-quoc-cup-nestle-milo-2025-234465.htm
+2026-10-14T10:53:42.330Z [FETCH] Opening article: https://baophutho.vn/u11-phu-tho-gianh-ve-den-vong-chung-ket-giai-bong-da-nhi-dong-toan-quoc-cup-nestle-milo-2025-234465.htm
+2026-10-14T10:53:42.840Z [DATE] Found publish_date via meta article:published_time: 2025-06-15T12:46:00.000Z
+2026-10-14T10:53:44.429Z [DATE] Found publish_date via RSS pubDate: 2025-07-18T10:28:56.000Z
+2026-10-14T10:53:44.438Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vov.gov.vn/so-y-te-dong-nai-cong-bo-ket-qua-kiem-nghiem-sua-lua-mach-nestle-milo-dtnew-1088622
+2026-10-14T10:53:44.438Z [FETCH] Opening article: https://vov.gov.vn/so-y-te-dong-nai-cong-bo-ket-qua-kiem-nghiem-sua-lua-mach-nestle-milo-dtnew-1088622
+2026-10-14T10:53:44.513Z [DATE] Found publish_date via RSS pubDate: 2026-06-12T07:00:00.000Z
+2026-10-14T10:53:44.517Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://quangngaitv.vn/khai-mac-giai-bong-da-nhi-dong-toan-quoc-cup-nestle-milo-6521336.html
+2026-10-14T10:53:44.517Z [FETCH] Opening article: https://quangngaitv.vn/khai-mac-giai-bong-da-nhi-dong-toan-quoc-cup-nestle-milo-6521336.html
+2026-10-14T10:53:45.182Z [DATE] Found publish_date via RSS pubDate: 2026-06-12T07:00:00.000Z
+2026-10-14T10:53:46.409Z [DATE] Found publish_date via RSS pubDate: 2025-07-18T10:28:56.000Z
+2026-10-14T10:53:47.471Z [DATE] Found publish_date via meta article:published_time: 2026-06-04T10:07:09.000Z
+2026-10-14T10:53:49.029Z [DATE] Found publish_date via RSS pubDate: 2020-02-21T13:00:27.000Z
+2026-10-14T10:53:49.034Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://cafef.vn/nestle.html
+2026-10-14T10:53:49.034Z [FETCH] Opening article: https://cafef.vn/nestle.html
+2026-10-14T10:53:49.504Z [DATE] Found publish_date via RSS pubDate: 2020-02-21T13:00:27.000Z
+2026-10-14T10:53:51.622Z [DATE] Found publish_date via meta article:published_time: 2026-07-25T03:49:01.000Z
+2026-10-14T10:53:51.626Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://doanhnghiephoinhap.vn/vinamilk-lai-quy-ii-cao-nhat-hon-5-nam-hoan-thanh-57-ke-hoach-loi-nhuan-nam-144211.html
+2026-10-14T10:53:51.626Z [FETCH] Opening article: https://doanhnghiephoinhap.vn/vinamilk-lai-quy-ii-cao-nhat-hon-5-nam-hoan-thanh-57-ke-hoach-loi-nhuan-nam-144211.html
+2026-10-14T10:53:52.537Z [DATE] Found publish_date via meta article:published_time: 2026-07-25T03:49:01.000Z
+2026-10-14T10:53:53.612Z [INFO] [FETCH] Browser fallback (terminated): https://tuoitre.vn/saigontimes/von-nha-nuoc-giu-the-tai-vinamilk-trong-chu-ky-moi-1061219977.htm
+2026-10-14T10:53:53.612Z [FETCH] Opening article: https://tuoitre.vn/saigontimes/von-nha-nuoc-giu-the-tai-vinamilk-trong-chu-ky-moi-1061219977.htm
+2026-10-14T10:53:54.168Z [DATE] Found publish_date via meta article:published_time: 2026-04-23T03:00:48.000Z
+2026-10-14T10:53:58.313Z [DATE] Found publish_date via meta article:published_time: 2026-06-17T10:14:16.000Z
+2026-10-14T10:53:58.320Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/vinamilk-sap-chot-danh-sach-co-dong-tra-co-tuc-tien-mat-56363.html
+2026-10-14T10:53:58.320Z [FETCH] Opening article: https://mekongasean.vn/vinamilk-sap-chot-danh-sach-co-dong-tra-co-tuc-tien-mat-56363.html
+2026-10-14T10:53:58.390Z [DATE] Found publish_date via meta article:published_time: 2026-04-22T07:21:24.000Z
+2026-10-14T10:53:58.394Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/thi-truong-sua-con-nhieu-du-dia-vinamilk-dat-muc-tieu-dat-1000-cua-hang-tren-toan-quoc-54369.html
+2026-10-14T10:53:58.394Z [FETCH] Opening article: https://mekongasean.vn/thi-truong-sua-con-nhieu-du-dia-vinamilk-dat-muc-tieu-dat-1000-cua-hang-tren-toan-quoc-54369.html
+2026-10-14T10:53:58.808Z [DATE] Found publish_date via meta article:published_time: 2026-06-17T10:14:16.000Z
+2026-10-14T10:53:58.836Z [DATE] Found publish_date via meta article:published_time: 2026-04-22T07:21:24.000Z
+2026-10-14T10:53:59.846Z [DATE] Found publish_date via JSON-LD datePublished: 2026-06-12T14:05:53.000Z
+2026-10-14T10:53:59.860Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/tieu-dung-AA9F50895/vinamilk-gop-phan-dua-lua-chon-thuan-chay-den-gan-hon-voi-nguoi-tieu-dung-e4a83b87c.html
+2026-10-14T10:53:59.860Z [FETCH] Opening article: https://thanhtra.com.vn/tieu-dung-AA9F50895/vinamilk-gop-phan-dua-lua-chon-thuan-chay-den-gan-hon-voi-nguoi-tieu-dung-e4a83b87c.html
+2026-10-14T10:54:00.556Z [DATE] Found publish_date via JSON-LD datePublished: 2026-06-12T14:05:53.000Z
+2026-10-14T10:54:02.065Z [DATE] Found publish_date via meta article:published_time: 2026-04-01T09:14:01.000Z
+2026-10-14T10:54:02.071Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thitruongtaichinhtiente.vn/vinamilk-dat-muc-tieu-lai-hon-9-800-ty-dong-tra-co-tuc-tien-mat-toi-thieu-bang-50-loi-nhuan-80789.html
+2026-10-14T10:54:02.071Z [FETCH] Opening article: https://thitruongtaichinhtiente.vn/vinamilk-dat-muc-tieu-lai-hon-9-800-ty-dong-tra-co-tuc-tien-mat-toi-thieu-bang-50-loi-nhuan-80789.html
+2026-10-14T10:54:02.502Z [DATE] Found publish_date via meta article:published_time: 2026-04-01T09:14:01.000Z
+2026-10-14T10:54:03.564Z [DATE] Found publish_date via meta article:published_time: 2026-01-23T05:14:31.000Z
+2026-10-14T10:54:03.571Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://tuoitre.vn/saigontimes/ban-sach-von-nha-dau-tu-ngoai-chia-tay-vinamilk-sau-8-nam-dong-hanh-1061185793.htm
+2026-10-14T10:54:03.571Z [FETCH] Opening article: https://tuoitre.vn/saigontimes/ban-sach-von-nha-dau-tu-ngoai-chia-tay-vinamilk-sau-8-nam-dong-hanh-1061185793.htm
+2026-10-14T10:54:04.138Z [DATE] Found publish_date via meta article:published_time: 2026-01-23T05:14:31.000Z
+2026-10-14T10:54:05.312Z [DATE] Found publish_date via RSS pubDate: 2026-08-14T07:48:50.000Z
+2026-10-14T10:54:05.322Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://www.agribank.com.vn/vn/ve-agribank/tin-tuc-su-kien/tai-chinh-ngan-hang/agribank-vinamilk-bat-tay-mo-rong-he-sinh-thai-kien-tao-dong-luc-tang-truong-giai-doan-moi
+2026-10-14T10:54:05.322Z [FETCH] Opening article: https://www.agribank.com.vn/vn/ve-agribank/tin-tuc-su-kien/tai-chinh-ngan-hang/agribank-vinamilk-bat-tay-mo-rong-he-sinh-thai-kien-tao-dong-luc-tang-truong-giai-doan-moi
+2026-10-14T10:54:06.786Z [DATE] Found publish_date via RSS pubDate: 2026-08-14T07:48:50.000Z
+2026-10-14T10:54:07.653Z [DATE] Found publish_date via JSON-LD datePublished: 2024-12-10T11:17:51.000Z
+2026-10-14T10:54:07.668Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/doanh-nghiep-70CE54C31/di-dau-ve-phat-trien-ben-vung-vinamilk-thuc-hien-cac-muc-tieu-esg-nhu-the-nao-0a0f3c0de.html
+2026-10-14T10:54:07.668Z [FETCH] Opening article: https://thanhtra.com.vn/doanh-nghiep-70CE54C31/di-dau-ve-phat-trien-ben-vung-vinamilk-thuc-hien-cac-muc-tieu-esg-nhu-the-nao-0a0f3c0de.html
+2026-10-14T10:54:08.269Z [DATE] Found publish_date via JSON-LD datePublished: 2024-12-10T11:17:51.000Z
+2026-10-14T10:54:09.271Z [DATE] Found publish_date via meta article:published_time: 2024-10-18T00:38:02.000Z
+2026-10-14T10:54:09.275Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/vinamilk-thach-thuc-tang-truong-va-ky-vong-chuyen-minh-sau-chien-luoc-tre-hoa-thuong-hieu-34542.html
+2026-10-14T10:54:09.275Z [FETCH] Opening article: https://mekongasean.vn/vinamilk-thach-thuc-tang-truong-va-ky-vong-chuyen-minh-sau-chien-luoc-tre-hoa-thuong-hieu-34542.html
+2026-10-14T10:54:09.792Z [DATE] Found publish_date via meta article:published_time: 2024-10-18T00:38:02.000Z
+2026-10-14T10:54:11.018Z [DATE] Found publish_date via meta article:published_time: 2025-01-25T12:44:37.000Z
+2026-10-14T10:54:11.025Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/vinamilk-lai-rong-cao-nhat-trong-3-nam-gan-day-37827.html
+2026-10-14T10:54:11.025Z [FETCH] Opening article: https://mekongasean.vn/vinamilk-lai-rong-cao-nhat-trong-3-nam-gan-day-37827.html
+2026-10-14T10:54:11.525Z [DATE] Found publish_date via meta article:published_time: 2025-01-25T12:44:37.000Z
+2026-10-14T10:54:12.787Z [DATE] Found publish_date via JSON-LD datePublished: 2025-01-30T01:43:01.000Z
+2026-10-14T10:54:12.796Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://hanoimoi.vn/hanh-trinh-dac-biet-va-khac-biet-cua-vinamilk-691768.html
+2026-10-14T10:54:12.796Z [FETCH] Opening article: https://hanoimoi.vn/hanh-trinh-dac-biet-va-khac-biet-cua-vinamilk-691768.html
+2026-10-14T10:54:13.553Z [DATE] Found publish_date via JSON-LD datePublished: 2025-01-30T01:43:01.000Z
+2026-10-14T10:54:14.872Z [DATE] Found publish_date via JSON-LD datePublished: 2025-02-22T23:25:00.000Z
+2026-10-14T10:54:14.884Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/y-te-8CCF74D5E/vinamilk-dong-hanh-cung-giai-chay-run-with-me-cong-dong-khoe-3e426d663.html
+2026-10-14T10:54:14.884Z [FETCH] Opening article: https://thanhtra.com.vn/y-te-8CCF74D5E/vinamilk-dong-hanh-cung-giai-chay-run-with-me-cong-dong-khoe-3e426d663.html
+2026-10-14T10:54:15.631Z [DATE] Found publish_date via JSON-LD datePublished: 2025-02-22T23:25:00.000Z
+2026-10-14T10:54:17.064Z [DATE] Found publish_date via JSON-LD datePublished: 2024-07-31T02:18:24.000Z
+2026-10-14T10:54:17.077Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/kinh-doanh-A08BE54D6/doanh-thu-quy-ii-2024-cua-vinamilk-lap-dinh-moi-FC160E1B.html
+2026-10-14T10:54:17.077Z [FETCH] Opening article: https://thanhtra.com.vn/kinh-doanh-A08BE54D6/doanh-thu-quy-ii-2024-cua-vinamilk-lap-dinh-moi-FC160E1B.html
+2026-10-14T10:54:17.584Z [DATE] Found publish_date via JSON-LD datePublished: 2024-07-31T02:18:24.000Z
+2026-10-14T10:54:19.210Z [DATE] Found publish_date via meta article:published_time: 2024-07-01T04:03:24.000Z
+2026-10-14T10:54:19.217Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://tamanhhospital.vn/tin-tuc/trao-tang-100-000-hop-sua-vinamilk-cho-khach-hang/
+2026-10-14T10:54:19.218Z [FETCH] Opening article: https://tamanhhospital.vn/tin-tuc/trao-tang-100-000-hop-sua-vinamilk-cho-khach-hang/
+2026-10-14T10:54:20.229Z [DATE] Found publish_date via meta article:published_time: 2024-07-01T04:03:24.000Z
+2026-10-14T10:54:20.658Z [DATE] Found publish_date via meta article:published_time: 2024-01-13T01:00:01.000Z
+2026-10-14T10:54:20.664Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thitruongtaichinhtiente.vn/vinamilk-ghi-dau-an-trong-linh-vuc-phat-trien-ben-vung-55532.html
+2026-10-14T10:54:20.664Z [FETCH] Opening article: https://thitruongtaichinhtiente.vn/vinamilk-ghi-dau-an-trong-linh-vuc-phat-trien-ben-vung-55532.html
+2026-10-14T10:54:20.936Z [DATE] Found publish_date via meta article:published_time: 2024-01-13T01:00:01.000Z
+2026-10-14T10:54:22.447Z [DATE] Found publish_date via JSON-LD datePublished: 2024-06-06T04:17:54.000Z
+2026-10-14T10:54:22.458Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/thong-tin-doanh-nghiep-49F64E63D/chuoi-hoat-dong-1-6-soi-noi-tu-vinamilk-va-khoi-dau-mua-he-2024-y-nghia-27DF5BD3.html
+2026-10-14T10:54:22.458Z [FETCH] Opening article: https://thanhtra.com.vn/thong-tin-doanh-nghiep-49F64E63D/chuoi-hoat-dong-1-6-soi-noi-tu-vinamilk-va-khoi-dau-mua-he-2024-y-nghia-27DF5BD3.html
+2026-10-14T10:54:22.987Z [DATE] Found publish_date via JSON-LD datePublished: 2024-06-06T04:17:54.000Z
+2026-10-14T10:54:24.143Z [DATE] Found publish_date via meta article:published_time: 2024-08-28T06:27:01.000Z
+2026-10-14T10:54:24.147Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thitruongtaichinhtiente.vn/vinamilk-chuan-bi-buoc-chu-ky-tang-truong-moi-he-lo-thoi-diem-chay-thuong-mai-nha-may-che-bien-thit-bo-62185.html
+2026-10-14T10:54:24.147Z [FETCH] Opening article: https://thitruongtaichinhtiente.vn/vinamilk-chuan-bi-buoc-chu-ky-tang-truong-moi-he-lo-thoi-diem-chay-thuong-mai-nha-may-che-bien-thit-bo-62185.html
+2026-10-14T10:54:24.491Z [DATE] Found publish_date via meta article:published_time: 2024-08-28T06:27:01.000Z
+2026-10-14T10:54:26.444Z [INFO] [FETCH] Browser fallback (Article HTTP 403): https://www.brandsvietnam.com/work/tvc-vinamilk-3-ly-sua-moi-ngay/
+2026-10-14T10:54:26.444Z [FETCH] Opening article: https://www.brandsvietnam.com/work/tvc-vinamilk-3-ly-sua-moi-ngay/
+2026-10-14T10:54:27.237Z [DATE] Found publish_date via JSON-LD datePublished: 2024-04-03T20:12:11.000Z
+2026-10-14T10:54:28.290Z [DATE] Found publish_date via JSON-LD datePublished: 2024-07-02T15:00:00.000Z
+2026-10-14T10:54:28.301Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/kinh-doanh-A08BE54D6/vinamilk-chiem-song-nhieu-bang-xep-hang-ve-thuong-hieu-duoc-chon-mua-nhieu-nhat-2024-8DBE5300.html
+2026-10-14T10:54:28.301Z [FETCH] Opening article: https://thanhtra.com.vn/kinh-doanh-A08BE54D6/vinamilk-chiem-song-nhieu-bang-xep-hang-ve-thuong-hieu-duoc-chon-mua-nhieu-nhat-2024-8DBE5300.html
+2026-10-14T10:54:28.822Z [DATE] Found publish_date via JSON-LD datePublished: 2024-07-02T15:00:00.000Z
+2026-10-14T10:54:33.353Z [DATE] Found publish_date via meta article:published_time: 2024-04-26T05:27:00.000Z
+2026-10-14T10:54:33.358Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/cac-tu-khoa-noi-bat-tai-dai-hoi-vinamilk-san-pham-doi-moi-phat-trien-ben-vung-23510.html
+2026-10-14T10:54:33.358Z [FETCH] Opening article: https://mekongasean.vn/cac-tu-khoa-noi-bat-tai-dai-hoi-vinamilk-san-pham-doi-moi-phat-trien-ben-vung-23510.html
+2026-10-14T10:54:33.519Z [DATE] Found publish_date via meta article:published_time: 2024-04-10T03:04:00.000Z
+2026-10-14T10:54:33.523Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/vinamilk-chia-them-co-tuc-cho-nam-2023-14072.html
+2026-10-14T10:54:33.523Z [FETCH] Opening article: https://mekongasean.vn/vinamilk-chia-them-co-tuc-cho-nam-2023-14072.html
+2026-10-14T10:54:33.834Z [DATE] Found publish_date via meta article:published_time: 2024-04-26T05:27:00.000Z
+2026-10-14T10:54:34.006Z [DATE] Found publish_date via meta article:published_time: 2024-04-10T03:04:00.000Z
+2026-10-14T10:54:35.968Z [DATE] Found publish_date via JSON-LD datePublished: 2024-02-01T04:26:32.000Z
+2026-10-14T10:54:35.980Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/thong-tin-doanh-nghiep-49F64E63D/doanh-thu-xuat-khau-quy-4-2023-cua-vinamilk-tang-truong-an-tuong-gan-20-EDBCEE0F.html
+2026-10-14T10:54:35.980Z [FETCH] Opening article: https://thanhtra.com.vn/thong-tin-doanh-nghiep-49F64E63D/doanh-thu-xuat-khau-quy-4-2023-cua-vinamilk-tang-truong-an-tuong-gan-20-EDBCEE0F.html
+2026-10-14T10:54:36.515Z [DATE] Found publish_date via JSON-LD datePublished: 2024-02-01T04:26:32.000Z
+2026-10-14T10:54:40.533Z [INFO] [FETCH] Browser fallback (Article HTTP 403): https://www.brandsvietnam.com/embed/660cfc817d8ff5160d1b665d/
+2026-10-14T10:54:40.534Z [FETCH] Opening article: https://www.brandsvietnam.com/embed/660cfc817d8ff5160d1b665d/
+2026-10-14T10:54:40.827Z [DATE] Found publish_date via RSS pubDate: 2024-04-04T05:06:00.000Z
+2026-10-14T10:54:41.603Z [DATE] Found publish_date via RSS pubDate: 2024-01-30T08:00:00.000Z
+2026-10-14T10:54:41.611Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vov.gov.vn/vinamilk-doanh-thu-xuat-khau-quy-iv2023-tang-truong-an-tuong-gan-20-dtnew-655052
+2026-10-14T10:54:41.611Z [FETCH] Opening article: https://vov.gov.vn/vinamilk-doanh-thu-xuat-khau-quy-iv2023-tang-truong-an-tuong-gan-20-dtnew-655052
+2026-10-14T10:54:42.520Z [INFO] [FETCH] Browser fallback (Article HTTP 403): https://www.brandsvietnam.com/embed/660cf4df7d8ff5160d1b661b/
+2026-10-14T10:54:42.520Z [FETCH] Opening article: https://www.brandsvietnam.com/embed/660cf4df7d8ff5160d1b661b/
+2026-10-14T10:54:42.917Z [DATE] Found publish_date via RSS pubDate: 2024-04-03T09:31:32.000Z
+2026-10-14T10:54:43.033Z [DATE] Found publish_date via RSS pubDate: 2024-01-30T08:00:00.000Z
+2026-10-14T10:54:44.297Z [INFO] [FETCH] Browser fallback (Article HTTP 403): https://www.brandsvietnam.com/embed/65a7971b7d8ff5160d165802/
+2026-10-14T10:54:44.297Z [FETCH] Opening article: https://www.brandsvietnam.com/embed/65a7971b7d8ff5160d165802/
+2026-10-14T10:54:44.603Z [DATE] Found publish_date via RSS pubDate: 2024-01-18T07:26:45.000Z
+2026-10-14T10:54:46.731Z [DATE] Found publish_date via meta article:published_time: 2024-06-11T07:10:44.000Z
+2026-10-14T10:54:46.739Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://tuoitre.vn/saigontimes/vinamilk-thuc-day-xuat-khau-sua-qua-cac-chuoi-ban-le-va-phan-phoi-toan-cau-106931338.htm
+2026-10-14T10:54:46.739Z [FETCH] Opening article: https://tuoitre.vn/saigontimes/vinamilk-thuc-day-xuat-khau-sua-qua-cac-chuoi-ban-le-va-phan-phoi-toan-cau-106931338.htm
+2026-10-14T10:54:47.196Z [DATE] Found publish_date via meta article:published_time: 2024-06-11T07:10:44.000Z
+2026-10-14T10:54:49.983Z [DATE] Found publish_date via meta article:published_time: 2024-08-28T02:07:54.000Z
+2026-10-14T10:54:49.991Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/lanh-dao-vinamilk-chia-se-thoi-diem-san-sang-buoc-vao-chu-ky-tang-truong-moi-32838.html
+2026-10-14T10:54:49.991Z [FETCH] Opening article: https://mekongasean.vn/lanh-dao-vinamilk-chia-se-thoi-diem-san-sang-buoc-vao-chu-ky-tang-truong-moi-32838.html
+2026-10-14T10:54:50.517Z [DATE] Found publish_date via meta article:published_time: 2024-08-28T02:07:54.000Z
+2026-10-14T10:54:50.769Z [DATE] Found publish_date via RSS pubDate: 2024-07-02T07:00:00.000Z
+2026-10-14T10:54:50.775Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vov.gov.vn/vi-tri-kho-lung-lay-cua-vinamilk-trong-nganh-sua-va-toan-fmcg-viet-nam-dtnew-873998
+2026-10-14T10:54:50.775Z [FETCH] Opening article: https://vov.gov.vn/vi-tri-kho-lung-lay-cua-vinamilk-trong-nganh-sua-va-toan-fmcg-viet-nam-dtnew-873998
+2026-10-14T10:54:52.331Z [DATE] Found publish_date via RSS pubDate: 2024-05-22T07:00:00.000Z
+2026-10-14T10:54:52.340Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vnvc.vn/hop-tac/vnvc-vinamilk-bv-tam-anh-ky-ket-hop-tac-chien-luoc/
+2026-10-14T10:54:52.340Z [FETCH] Opening article: https://vnvc.vn/hop-tac/vnvc-vinamilk-bv-tam-anh-ky-ket-hop-tac-chien-luoc/
+2026-10-14T10:54:52.554Z [DATE] Found publish_date via RSS pubDate: 2024-07-02T07:00:00.000Z
+2026-10-14T10:54:52.935Z [DATE] Found publish_date via RSS pubDate: 2024-05-22T07:00:00.000Z
+2026-10-14T10:54:54.728Z [DATE] Found publish_date via meta article:published_time: 2024-08-23T01:19:16.000Z
+2026-10-14T10:54:54.734Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/vinamilk-chot-danh-sach-co-dong-tra-co-tuc-sau-loat-tin-vui-32668.html
+2026-10-14T10:54:54.734Z [FETCH] Opening article: https://mekongasean.vn/vinamilk-chot-danh-sach-co-dong-tra-co-tuc-sau-loat-tin-vui-32668.html
+2026-10-14T10:54:55.128Z [DATE] Found publish_date via meta article:published_time: 2024-08-23T01:19:16.000Z
+2026-10-14T10:54:58.180Z [DATE] Found publish_date via RSS pubDate: 2024-06-09T07:00:00.000Z
+2026-10-14T10:54:58.186Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vov.gov.vn/vinamilk-dua-san-pham-sua-viet-nam-vao-chuoi-san-xuat-cung-ung-toan-cau-dtnew-844070
+2026-10-14T10:54:58.186Z [FETCH] Opening article: https://vov.gov.vn/vinamilk-dua-san-pham-sua-viet-nam-vao-chuoi-san-xuat-cung-ung-toan-cau-dtnew-844070
+2026-10-14T10:55:01.176Z [DATE] Found publish_date via RSS pubDate: 2024-06-11T07:00:00.000Z
+2026-10-14T10:55:01.183Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vov.gov.vn/vinamilk-cong-bo-bao-cao-phat-trien-ben-vung-chon-chu-de-net-zero-2050-dtnew-847937
+2026-10-14T10:55:01.183Z [FETCH] Opening article: https://vov.gov.vn/vinamilk-cong-bo-bao-cao-phat-trien-ben-vung-chon-chu-de-net-zero-2050-dtnew-847937
+2026-10-14T10:55:01.691Z [DATE] Found publish_date via RSS pubDate: 2024-06-09T07:00:00.000Z
+2026-10-14T10:55:03.008Z [DATE] Found publish_date via meta article:published_time: 2024-05-14T10:13:00.000Z
+2026-10-14T10:55:03.013Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/hanh-trinh-17-nam-mang-sua-len-vung-cao-cho-tre-em-kho-khan-cua-vinamilk-28911.html
+2026-10-14T10:55:03.013Z [FETCH] Opening article: https://mekongasean.vn/hanh-trinh-17-nam-mang-sua-len-vung-cao-cho-tre-em-kho-khan-cua-vinamilk-28911.html
+2026-10-14T10:55:03.565Z [DATE] Found publish_date via meta article:published_time: 2024-05-14T10:13:00.000Z
+2026-10-14T10:55:04.120Z [DATE] Found publish_date via RSS pubDate: 2024-06-17T07:00:00.000Z
+2026-10-14T10:55:04.127Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vov.gov.vn/he-sinh-thai-net-zero-da-vuot-ra-ngoai-nhung-trang-trai-xanh-cua-vinamilk-dtnew-855311
+2026-10-14T10:55:04.127Z [FETCH] Opening article: https://vov.gov.vn/he-sinh-thai-net-zero-da-vuot-ra-ngoai-nhung-trang-trai-xanh-cua-vinamilk-dtnew-855311
+2026-10-14T10:55:04.352Z [DATE] Found publish_date via RSS pubDate: 2024-06-11T07:00:00.000Z
+2026-10-14T10:55:05.383Z [DATE] Found publish_date via meta pubdate: 2024-12-10T01:59:00.000Z
+2026-10-14T10:55:05.388Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://congan.com.vn/thi-truong/thuong-hieu-viet/di-dau-ve-phat-trien-ben-vung-vinamilk-thuc-hien-cac-muc-tieu-esg-nhu-the-nao_171144.html
+2026-10-14T10:55:05.388Z [FETCH] Opening article: https://congan.com.vn/thi-truong/thuong-hieu-viet/di-dau-ve-phat-trien-ben-vung-vinamilk-thuc-hien-cac-muc-tieu-esg-nhu-the-nao_171144.html
+2026-10-14T10:55:05.710Z [DATE] Found publish_date via meta pubdate: 2024-12-10T01:59:00.000Z
+2026-10-14T10:55:06.113Z [DATE] Found publish_date via RSS pubDate: 2024-06-17T07:00:00.000Z
+2026-10-14T10:55:07.029Z [DATE] Found publish_date via meta article:published_time: 2021-07-23T06:55:43.000Z
+2026-10-14T10:55:07.031Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://special.vietnamplus.vn/vinamilk-xay-dung-trang-trai-bo-sua-quy-mo-8-000-con-tai-tay-ninh-2/
+2026-10-14T10:55:07.031Z [FETCH] Opening article: https://special.vietnamplus.vn/vinamilk-xay-dung-trang-trai-bo-sua-quy-mo-8-000-con-tai-tay-ninh-2/
+2026-10-14T10:55:07.913Z [CAPTCHA] CAPTCHA detected, waiting up to 120s for manual solve
+2026-10-14T10:55:09.333Z [DATE] Found publish_date via JSON-LD datePublished: 2025-01-10T03:22:22.000Z
+2026-10-14T10:55:09.359Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/tieu-dung-AA9F50895/check-in-metro-ben-thanh-suoi-tien-cung-vinamilk-3e6de18b3.html
+2026-10-14T10:55:09.359Z [FETCH] Opening article: https://thanhtra.com.vn/tieu-dung-AA9F50895/check-in-metro-ben-thanh-suoi-tien-cung-vinamilk-3e6de18b3.html
+2026-10-14T10:55:10.334Z [DATE] Found publish_date via JSON-LD datePublished: 2025-01-10T03:22:22.000Z
+2026-10-14T10:55:11.214Z [WARN] [CAPTCHA] Could not complete manual verification: page.addInitScript: Target crashed 
+2026-10-14T10:55:11.562Z [DATE] Found publish_date via RSS pubDate: 2025-01-05T08:00:00.000Z
+2026-10-14T10:55:11.562Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://trading.vietcap.com.vn/ai-news/post-detail/vnm-nuoc-co-thong-minh-cua-vinamilk-vnm-tai-dinh-vi-de-dan-dau-thi-truong
+2026-10-14T10:55:11.562Z [FETCH] Opening article: https://trading.vietcap.com.vn/ai-news/post-detail/vnm-nuoc-co-thong-minh-cua-vinamilk-vnm-tai-dinh-vi-de-dan-dau-thi-truong
+2026-10-14T10:55:12.988Z [DATE] Found publish_date via RSS pubDate: 2025-01-05T08:00:00.000Z
+2026-10-14T10:55:13.413Z [DATE] Found publish_date via JSON-LD datePublished: 2024-10-07T11:19:32.000Z
+2026-10-14T10:55:13.423Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/giao-duc-A6BAEB6CD/vo-xinh-duoc-tai-sinh-chuong-trinh-cua-vinamilk-thuc-day-gen-z-gen-alpha-tieu-dung-xanh-A440B414.html
+2026-10-14T10:55:13.423Z [FETCH] Opening article: https://thanhtra.com.vn/giao-duc-A6BAEB6CD/vo-xinh-duoc-tai-sinh-chuong-trinh-cua-vinamilk-thuc-day-gen-z-gen-alpha-tieu-dung-xanh-A440B414.html
+2026-10-14T10:55:14.095Z [DATE] Found publish_date via JSON-LD datePublished: 2024-10-07T11:19:32.000Z
+2026-10-14T10:55:15.441Z [DATE] Found publish_date via JSON-LD datePublished: 2025-01-07T00:05:00.000Z
+2026-10-14T10:55:15.455Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/doanh-nghiep-70CE54C31/dua-cong-nghe-dot-pha-vao-moi-hop-sua-vinamilk-nang-cap-chuan-chat-luong-thi-truong-sua-noi-dia-029ea8e81.html
+2026-10-14T10:55:15.455Z [FETCH] Opening article: https://thanhtra.com.vn/doanh-nghiep-70CE54C31/dua-cong-nghe-dot-pha-vao-moi-hop-sua-vinamilk-nang-cap-chuan-chat-luong-thi-truong-sua-noi-dia-029ea8e81.html
+2026-10-14T10:55:15.931Z [DATE] Found publish_date via JSON-LD datePublished: 2025-01-07T00:05:00.000Z
+2026-10-14T10:55:19.814Z [DATE] Found publish_date via JSON-LD datePublished: 2024-09-25T06:16:06.000Z
+2026-10-14T10:55:19.824Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/an-sinh-AFA9C5670/vinamilk-tiep-tuc-ho-tro-nguoi-dan-sau-bao-lu-AB195461.html
+2026-10-14T10:55:19.824Z [FETCH] Opening article: https://thanhtra.com.vn/an-sinh-AFA9C5670/vinamilk-tiep-tuc-ho-tro-nguoi-dan-sau-bao-lu-AB195461.html
+2026-10-14T10:55:20.970Z [DATE] Found publish_date via JSON-LD datePublished: 2024-09-25T06:16:06.000Z
+2026-10-14T10:55:21.242Z [DATE] Found publish_date via RSS pubDate: 2024-09-13T07:00:00.000Z
+2026-10-14T10:55:21.247Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vov.gov.vn/vinamilk-kip-thoi-ho-tro-550000-san-pham-thiet-yeu-cho-nguoi-dan-vung-bao-lu-dtnew-1022963
+2026-10-14T10:55:21.247Z [FETCH] Opening article: https://vov.gov.vn/vinamilk-kip-thoi-ho-tro-550000-san-pham-thiet-yeu-cho-nguoi-dan-vung-bao-lu-dtnew-1022963
+2026-10-14T10:55:21.344Z [DATE] Found publish_date via meta article:published_time: 2024-09-24T01:13:00.000Z
+2026-10-14T10:55:21.346Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vietnambiz.vn/cuoc-choi-nganh-kem-cua-kido-vinamilk-va-unilever-2024923164843356.htm
+2026-10-14T10:55:21.346Z [FETCH] Opening article: https://vietnambiz.vn/cuoc-choi-nganh-kem-cua-kido-vinamilk-va-unilever-2024923164843356.htm
+2026-10-14T10:55:22.000Z [DATE] Found publish_date via meta article:published_time: 2024-09-24T01:13:00.000Z
+2026-10-14T10:55:22.900Z [DATE] Found publish_date via RSS pubDate: 2024-11-10T08:00:00.000Z
+2026-10-14T10:55:22.901Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://trading.vietcap.com.vn/ai-news/post-detail/vnm-gia-co-phieu-vinamilk-cham-day-3-thang-ty-phu-thai-muon-mua-gan-21-trieu-co-phieu
+2026-10-14T10:55:22.901Z [FETCH] Opening article: https://trading.vietcap.com.vn/ai-news/post-detail/vnm-gia-co-phieu-vinamilk-cham-day-3-thang-ty-phu-thai-muon-mua-gan-21-trieu-co-phieu
+2026-10-14T10:55:22.920Z [DATE] Found publish_date via RSS pubDate: 2024-09-13T07:00:00.000Z
+2026-10-14T10:55:23.325Z [DATE] Found publish_date via RSS pubDate: 2024-11-10T08:00:00.000Z
+2026-10-14T10:55:26.510Z [DATE] Found publish_date via RSS pubDate: 2024-10-13T07:00:00.000Z
+2026-10-14T10:55:26.522Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vov.gov.vn/nhung-cau-noi-the-hien-tam-lanh-dao-cua-nu-tuong-nganh-sua-mai-kieu-lien-dtnew-1031048
+2026-10-14T10:55:26.522Z [FETCH] Opening article: https://vov.gov.vn/nhung-cau-noi-the-hien-tam-lanh-dao-cua-nu-tuong-nganh-sua-mai-kieu-lien-dtnew-1031048
+2026-10-14T10:55:27.290Z [DATE] Found publish_date via JSON-LD datePublished: 2024-11-28T05:12:54.000Z
+2026-10-14T10:55:27.309Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/doanh-nghiep-70CE54C31/tu-thuong-hieu-sua-quoc-dan-den-gia-tri-ty-do-trong-top-10-the-gioi-vinamilk-da-lam-dieu-do-nhu-the-nao-0d8a180c2.html
+2026-10-14T10:55:27.318Z [FETCH] Opening article: https://thanhtra.com.vn/doanh-nghiep-70CE54C31/tu-thuong-hieu-sua-quoc-dan-den-gia-tri-ty-do-trong-top-10-the-gioi-vinamilk-da-lam-dieu-do-nhu-the-nao-0d8a180c2.html
+2026-10-14T10:55:27.814Z [DATE] Found publish_date via JSON-LD datePublished: 2024-11-28T05:12:54.000Z
+2026-10-14T10:55:29.300Z [DATE] Found publish_date via meta pubdate: 2024-12-26T01:58:00.000Z
+2026-10-14T10:55:29.306Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://congan.com.vn/thi-truong/thuong-hieu-viet/vinamilk-logo-halal-tren-hop-sua-la-loi-cam-ket-voi-nguoi-tieu-dung_172000.html
+2026-10-14T10:55:29.307Z [FETCH] Opening article: https://congan.com.vn/thi-truong/thuong-hieu-viet/vinamilk-logo-halal-tren-hop-sua-la-loi-cam-ket-voi-nguoi-tieu-dung_172000.html
+2026-10-14T10:55:29.638Z [DATE] Found publish_date via meta pubdate: 2024-12-26T01:58:00.000Z
+2026-10-14T10:55:30.412Z [DATE] Found publish_date via RSS pubDate: 2024-10-13T07:00:00.000Z
+2026-10-14T10:55:31.721Z [DATE] Found publish_date via JSON-LD datePublished: 2024-12-12T14:23:26.000Z
+2026-10-14T10:55:31.734Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/doanh-nghiep-70CE54C31/hop-qua-bat-ngo-tu-vinamilk-mang-niem-vui-am-ap-den-tre-em-vung-cao-0a0f3d61b.html
+2026-10-14T10:55:31.734Z [FETCH] Opening article: https://thanhtra.com.vn/doanh-nghiep-70CE54C31/hop-qua-bat-ngo-tu-vinamilk-mang-niem-vui-am-ap-den-tre-em-vung-cao-0a0f3d61b.html
+2026-10-14T10:55:32.280Z [DATE] Found publish_date via JSON-LD datePublished: 2024-12-12T14:23:26.000Z
+2026-10-14T10:55:33.948Z [DATE] Found publish_date via JSON-LD datePublished: 2024-12-25T07:25:00.000Z
+2026-10-14T10:55:33.961Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/tieu-dung-AA9F50895/vinamilk-cong-bo-cai-tien-dot-pha-6-hmo-dau-tien-tai-viet-nam-trong-san-pham-sua-cong-thuc-opptimum-4a56fff18.html
+2026-10-14T10:55:33.961Z [FETCH] Opening article: https://thanhtra.com.vn/tieu-dung-AA9F50895/vinamilk-cong-bo-cai-tien-dot-pha-6-hmo-dau-tien-tai-viet-nam-trong-san-pham-sua-cong-thuc-opptimum-4a56fff18.html
+2026-10-14T10:55:34.625Z [DATE] Found publish_date via JSON-LD datePublished: 2024-12-25T07:25:00.000Z
+2026-10-14T10:55:36.065Z [DATE] Found publish_date via meta article:published_time: 2024-12-30T06:29:01.000Z
+2026-10-14T10:55:36.073Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://markettimes.vn/vinamilk-ra-mat-sua-cong-thuc-co-6-hmo-dau-tien-tai-viet-nam-73218.html
+2026-10-14T10:55:36.073Z [FETCH] Opening article: https://markettimes.vn/vinamilk-ra-mat-sua-cong-thuc-co-6-hmo-dau-tien-tai-viet-nam-73218.html
+2026-10-14T10:55:36.512Z [DATE] Found publish_date via meta article:published_time: 2024-12-30T06:29:01.000Z
+2026-10-14T10:55:38.143Z [DATE] Found publish_date via meta pubdate: 2025-05-16T02:32:00.000Z
+2026-10-14T10:55:38.149Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://congan.com.vn/thi-truong/thuong-hieu-viet/400-phep-thu-200-kiem-dinh-vinamilk-dat-lai-chuan-sua-tuoi-viet_178064.html
+2026-10-14T10:55:38.149Z [FETCH] Opening article: https://congan.com.vn/thi-truong/thuong-hieu-viet/400-phep-thu-200-kiem-dinh-vinamilk-dat-lai-chuan-sua-tuoi-viet_178064.html
+2026-10-14T10:55:38.460Z [DATE] Found publish_date via meta pubdate: 2025-05-16T02:32:00.000Z
+2026-10-14T10:55:39.894Z [DATE] Found publish_date via JSON-LD datePublished: 2025-01-25T03:05:01.000Z
+2026-10-14T10:55:39.898Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://diendandoanhnghiep.vn/vinamilk-2024-doanh-thu-nuoc-ngoai-tang-truong-2-chu-so-tiep-tuc-dan-dau-thi-phan-noi-dia-10149519.html
+2026-10-14T10:55:39.898Z [FETCH] Opening article: https://diendandoanhnghiep.vn/vinamilk-2024-doanh-thu-nuoc-ngoai-tang-truong-2-chu-so-tiep-tuc-dan-dau-thi-phan-noi-dia-10149519.html
+2026-10-14T10:55:40.247Z [DATE] Found publish_date via JSON-LD datePublished: 2025-01-25T03:05:01.000Z
+2026-10-14T10:55:41.703Z [DATE] Found publish_date via meta pubdate: 2025-04-11T09:03:00.000Z
+2026-10-14T10:55:41.718Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://congan.com.vn/thi-truong/thuong-hieu-viet/vinamilk-tang-50000-hop-sua-cho-thieu-nhi-tphcm-nhan-su-kien-50-nam-thong-nhat-dat-nuoc_176509.html
+2026-10-14T10:55:41.718Z [FETCH] Opening article: https://congan.com.vn/thi-truong/thuong-hieu-viet/vinamilk-tang-50000-hop-sua-cho-thieu-nhi-tphcm-nhan-su-kien-50-nam-thong-nhat-dat-nuoc_176509.html
+2026-10-14T10:55:42.049Z [DATE] Found publish_date via meta pubdate: 2025-04-11T09:03:00.000Z
+2026-10-14T10:55:43.632Z [DATE] Found publish_date via JSON-LD datePublished: 2025-04-10T01:54:25.000Z
+2026-10-14T10:55:43.645Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/doanh-nghiep-70CE54C31/ba-mai-kieu-lien-noi-ve-dieu-duy-nhat-khong-doi-trong-cuoc-lot-xac-toan-dien-cua-vinamilk-f237bc4a3.html
+2026-10-14T10:55:43.645Z [FETCH] Opening article: https://thanhtra.com.vn/doanh-nghiep-70CE54C31/ba-mai-kieu-lien-noi-ve-dieu-duy-nhat-khong-doi-trong-cuoc-lot-xac-toan-dien-cua-vinamilk-f237bc4a3.html
+2026-10-14T10:55:44.164Z [DATE] Found publish_date via JSON-LD datePublished: 2025-04-10T01:54:25.000Z
+2026-10-14T10:55:46.431Z [DATE] Found publish_date via meta article:published_time: 2025-04-15T05:58:01.000Z
+2026-10-14T10:55:46.438Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thitruongtaichinhtiente.vn/hai-ung-vien-vao-hdqt-vinamilk-67014.html
+2026-10-14T10:55:46.438Z [FETCH] Opening article: https://thitruongtaichinhtiente.vn/hai-ung-vien-vao-hdqt-vinamilk-67014.html
+2026-10-14T10:55:46.865Z [DATE] Found publish_date via meta article:published_time: 2025-04-15T05:58:01.000Z
+2026-10-14T10:55:47.119Z [DATE] Found publish_date via RSS pubDate: 2025-03-31T07:00:00.000Z
+2026-10-14T10:55:47.120Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://trading.vietcap.com.vn/ai-news/post-detail/vnm-vinamilk-vnm-mo-rong-xuat-khau-sang-3-quoc-gia-moi-chien-luoc-may-do-phat-huy-hieu-qua
+2026-10-14T10:55:47.120Z [FETCH] Opening article: https://trading.vietcap.com.vn/ai-news/post-detail/vnm-vinamilk-vnm-mo-rong-xuat-khau-sang-3-quoc-gia-moi-chien-luoc-may-do-phat-huy-hieu-qua
+2026-10-14T10:55:47.610Z [DATE] Found publish_date via RSS pubDate: 2025-03-31T07:00:00.000Z
+2026-10-14T10:55:50.011Z [DATE] Found publish_date via meta pubdate: 2025-01-26T02:52:00.000Z
+2026-10-14T10:55:50.016Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://congan.com.vn/tu-thien/vinamilk-tang-hang-ngan-phan-qua-tet-cho-tre-em-cong-nhan-dip-nam-moi-at-ty_173537.html
+2026-10-14T10:55:50.016Z [FETCH] Opening article: https://congan.com.vn/tu-thien/vinamilk-tang-hang-ngan-phan-qua-tet-cho-tre-em-cong-nhan-dip-nam-moi-at-ty_173537.html
+2026-10-14T10:55:50.320Z [DATE] Found publish_date via meta pubdate: 2025-01-26T02:52:00.000Z
+2026-10-14T10:55:52.118Z [DATE] Found publish_date via meta article:published_time: 2025-01-15T05:01:11.000Z
+2026-10-14T10:55:52.125Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/cong-ty-lien-quan-ty-phu-thai-quyet-tam-theo-duoi-vinamilk-37541.html
+2026-10-14T10:55:52.125Z [FETCH] Opening article: https://mekongasean.vn/cong-ty-lien-quan-ty-phu-thai-quyet-tam-theo-duoi-vinamilk-37541.html
+2026-10-14T10:55:52.715Z [DATE] Found publish_date via meta article:published_time: 2025-01-15T05:01:11.000Z
+2026-10-14T10:55:53.520Z [DATE] Found publish_date via RSS pubDate: 2025-02-11T08:00:00.000Z
+2026-10-14T10:55:53.521Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://trading.vietcap.com.vn/ai-news/post-detail/vnm-gia-sua-bot-tang-cao-vinamilk-vnm-doi-mat-ap-luc-canh-tranh
+2026-10-14T10:55:53.521Z [FETCH] Opening article: https://trading.vietcap.com.vn/ai-news/post-detail/vnm-gia-sua-bot-tang-cao-vinamilk-vnm-doi-mat-ap-luc-canh-tranh
+2026-10-14T10:55:53.970Z [DATE] Found publish_date via RSS pubDate: 2025-02-11T08:00:00.000Z
+2026-10-14T10:55:55.450Z [DATE] Found publish_date via RSS pubDate: 2025-02-14T08:00:00.000Z
+2026-10-14T10:55:55.452Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://trading.vietcap.com.vn/ai-news/post-detail/vnm-dieu-gi-khien-co-phieu-vinamilk-roi-ve-day-10-nam
+2026-10-14T10:55:55.452Z [FETCH] Opening article: https://trading.vietcap.com.vn/ai-news/post-detail/vnm-dieu-gi-khien-co-phieu-vinamilk-roi-ve-day-10-nam
+2026-10-14T10:55:55.883Z [DATE] Found publish_date via RSS pubDate: 2025-02-14T08:00:00.000Z
+2026-10-14T10:55:57.052Z [DATE] Found publish_date via RSS pubDate: 2025-02-24T08:00:00.000Z
+2026-10-14T10:55:57.053Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://trading.vietcap.com.vn/ai-news/post-detail/vnm-thanh-vien-hdqt-vinamilk-tu-nhiem
+2026-10-14T10:55:57.054Z [FETCH] Opening article: https://trading.vietcap.com.vn/ai-news/post-detail/vnm-thanh-vien-hdqt-vinamilk-tu-nhiem
+2026-10-14T10:55:57.478Z [DATE] Found publish_date via RSS pubDate: 2025-02-24T08:00:00.000Z
+2026-10-14T10:55:59.158Z [DATE] Found publish_date via RSS pubDate: 2025-05-12T21:49:02.000Z
+2026-10-14T10:55:59.165Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://cafef.vn/du-lieu/hose/vnm-cong-ty-co-phan-sua-viet-nam.chn/
+2026-10-14T10:55:59.165Z [FETCH] Opening article: https://cafef.vn/du-lieu/hose/vnm-cong-ty-co-phan-sua-viet-nam.chn/
+2026-10-14T10:56:00.339Z [DATE] Found publish_date via RSS pubDate: 2025-05-12T21:49:02.000Z
+2026-10-14T10:56:00.796Z [DATE] Found publish_date via RSS pubDate: 2025-04-20T07:00:00.000Z
+2026-10-14T10:56:00.796Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://trading.vietcap.com.vn/ai-news/post-detail/vnm-nganh-sua-viet-trong-con-bao-sua-gia-sua-no-ai-dang-dan-dau-thi-phan
+2026-10-14T10:56:00.796Z [FETCH] Opening article: https://trading.vietcap.com.vn/ai-news/post-detail/vnm-nganh-sua-viet-trong-con-bao-sua-gia-sua-no-ai-dang-dan-dau-thi-phan
+2026-10-14T10:56:01.221Z [DATE] Found publish_date via RSS pubDate: 2025-04-20T07:00:00.000Z
+2026-10-14T10:56:03.053Z [DATE] Found publish_date via meta article:published_time: 2025-05-01T00:00:00.000Z
+2026-10-14T10:56:03.058Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vietnambiz.vn/vinamilk-lai-rong-gan-1600-ty-dong-ba-thang-dau-nam-2025430232747913.htm
+2026-10-14T10:56:03.058Z [FETCH] Opening article: https://vietnambiz.vn/vinamilk-lai-rong-gan-1600-ty-dong-ba-thang-dau-nam-2025430232747913.htm
+2026-10-14T10:56:03.642Z [DATE] Found publish_date via meta article:published_time: 2025-05-01T00:00:00.000Z
+2026-10-14T10:56:04.547Z [DATE] Found publish_date via meta pubdate: 2025-03-18T02:48:00.000Z
+2026-10-14T10:56:04.550Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://congan.com.vn/thi-truong/thuong-hieu-viet/thu-tuong-den-tham-nha-may-thit-bo-nghin-ty-duoc-dau-tu-boi-vinamilk-va-sojitz-nhat-ban_175305.html
+2026-10-14T10:56:04.550Z [FETCH] Opening article: https://congan.com.vn/thi-truong/thuong-hieu-viet/thu-tuong-den-tham-nha-may-thit-bo-nghin-ty-duoc-dau-tu-boi-vinamilk-va-sojitz-nhat-ban_175305.html
+2026-10-14T10:56:04.876Z [DATE] Found publish_date via meta pubdate: 2025-03-18T02:48:00.000Z
+2026-10-14T10:56:07.539Z [DATE] Found publish_date via meta article:published_time: 2026-07-25T01:04:00.000Z
+2026-10-14T10:56:07.546Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/vinamilk-bao-lai-quy-cao-nhat-hon-5-nam-57688.html
+2026-10-14T10:56:07.546Z [FETCH] Opening article: https://mekongasean.vn/vinamilk-bao-lai-quy-cao-nhat-hon-5-nam-57688.html
+2026-10-14T10:56:08.123Z [DATE] Found publish_date via meta article:published_time: 2026-07-25T01:04:00.000Z
+2026-10-14T10:56:08.606Z [DATE] Found publish_date via meta article:published_time: 2026-07-24T12:35:13.000Z
+2026-10-14T10:56:08.612Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/vinamilk-tu-ba-nha-may-bo-hoang-den-top-1-thuong-hieu-sua-tiem-nang-nhat-the-gioi-57676.html
+2026-10-14T10:56:08.612Z [FETCH] Opening article: https://mekongasean.vn/vinamilk-tu-ba-nha-may-bo-hoang-den-top-1-thuong-hieu-sua-tiem-nang-nhat-the-gioi-57676.html
+2026-10-14T10:56:09.057Z [DATE] Found publish_date via meta article:published_time: 2026-07-24T12:35:13.000Z
+2026-10-14T10:56:10.614Z [DATE] Found publish_date via RSS pubDate: 2026-08-28T03:51:42.000Z
+2026-10-14T10:56:10.620Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://www.agribank.com.vn/vn/ve-agribank/tin-tuc-su-kien/tai-chinh-ngan-hang/agribank-vinamilk-ket-noi-he-sinh-thai-cong-huong-gia-tri-dong-hanh-phat-trien
+2026-10-14T10:56:10.620Z [FETCH] Opening article: https://www.agribank.com.vn/vn/ve-agribank/tin-tuc-su-kien/tai-chinh-ngan-hang/agribank-vinamilk-ket-noi-he-sinh-thai-cong-huong-gia-tri-dong-hanh-phat-trien
+2026-10-14T10:56:11.131Z [DATE] Found publish_date via RSS pubDate: 2026-08-28T03:51:42.000Z
+2026-10-14T10:56:15.012Z [DATE] Found publish_date via meta article:published_time: 2026-01-14T10:25:28.000Z
+2026-10-14T10:56:15.020Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/co-phieu-vinamilk-ve-di-nh-2-nam-co-dong-nha-nuoc-kien-quyet-thoai-von-50811.html
+2026-10-14T10:56:15.020Z [FETCH] Opening article: https://mekongasean.vn/co-phieu-vinamilk-ve-di-nh-2-nam-co-dong-nha-nuoc-kien-quyet-thoai-von-50811.html
+2026-10-14T10:56:15.562Z [DATE] Found publish_date via meta article:published_time: 2026-01-14T10:25:28.000Z
+2026-10-14T10:56:16.310Z [DATE] Found publish_date via meta article:published_time: 2025-10-01T08:28:24.000Z
+2026-10-14T10:56:16.317Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/vinamilk-chot-ngay-tra-co-tuc-tien-mat-46844.html
+2026-10-14T10:56:16.318Z [FETCH] Opening article: https://mekongasean.vn/vinamilk-chot-ngay-tra-co-tuc-tien-mat-46844.html
+2026-10-14T10:56:16.740Z [DATE] Found publish_date via meta article:published_time: 2025-10-01T08:28:24.000Z
+2026-10-14T10:56:17.641Z [DATE] Found publish_date via meta article:published_time: 2025-09-08T03:44:46.000Z
+2026-10-14T10:56:17.645Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/vnm-cua-vinamilk-co-phieu-phong-thu-cho-co-hoi-45902.html
+2026-10-14T10:56:17.645Z [FETCH] Opening article: https://mekongasean.vn/vnm-cua-vinamilk-co-phieu-phong-thu-cho-co-hoi-45902.html
+2026-10-14T10:56:18.100Z [DATE] Found publish_date via meta article:published_time: 2025-09-08T03:44:46.000Z
+2026-10-14T10:56:18.588Z [DATE] Found publish_date via JSON-LD datePublished: 2025-10-31T10:23:01.000Z
+2026-10-14T10:56:18.593Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://diendandoanhnghiep.vn/hieu-qua-chuyen-doi-so-gia-tang-do-phu-he-thong-cua-hang-giup-vinamilk-tang-toc-doanh-thu-trong-quy-3-10164073.html
+2026-10-14T10:56:18.593Z [FETCH] Opening article: https://diendandoanhnghiep.vn/hieu-qua-chuyen-doi-so-gia-tang-do-phu-he-thong-cua-hang-giup-vinamilk-tang-toc-doanh-thu-trong-quy-3-10164073.html
+2026-10-14T10:56:18.987Z [DATE] Found publish_date via JSON-LD datePublished: 2025-10-31T10:23:01.000Z
+2026-10-14T10:56:20.923Z [DATE] Found publish_date via meta article:published_time: 2025-07-31T06:46:14.000Z
+2026-10-14T10:56:20.931Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://tuoitre.vn/saigontimes/doanh-thu-qui-2-2025-cua-vinamilk-ghi-nhan-tich-cuc-o-thi-truong-noi-dia-lan-nuoc-ngoai-1061115748.htm
+2026-10-14T10:56:20.931Z [FETCH] Opening article: https://tuoitre.vn/saigontimes/doanh-thu-qui-2-2025-cua-vinamilk-ghi-nhan-tich-cuc-o-thi-truong-noi-dia-lan-nuoc-ngoai-1061115748.htm
+2026-10-14T10:56:21.301Z [DATE] Found publish_date via meta article:published_time: 2025-07-31T06:46:14.000Z
+2026-10-14T10:56:25.070Z [DATE] Found publish_date via JSON-LD datePublished: 2025-09-03T00:31:33.000Z
+2026-10-14T10:56:25.085Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/doanh-nghiep-70CE54C31/nhung-khoanh-khac-dep-cung-vinamilk-trong-ngay-hoi-non-song-aed27f83c.html
+2026-10-14T10:56:25.085Z [FETCH] Opening article: https://thanhtra.com.vn/doanh-nghiep-70CE54C31/nhung-khoanh-khac-dep-cung-vinamilk-trong-ngay-hoi-non-song-aed27f83c.html
+2026-10-14T10:56:25.779Z [DATE] Found publish_date via JSON-LD datePublished: 2025-09-03T00:31:33.000Z
+2026-10-14T10:56:27.144Z [DATE] Found publish_date via meta article:published_time: 2025-07-01T01:43:59.000Z
+2026-10-14T10:56:27.151Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://tuoitre.vn/saigontimes/vinamilk-va-hanh-trinh-mang-hang-chuc-trieu-hop-sua-den-tre-em-viet-nam-1061103056.htm
+2026-10-14T10:56:27.151Z [FETCH] Opening article: https://tuoitre.vn/saigontimes/vinamilk-va-hanh-trinh-mang-hang-chuc-trieu-hop-sua-den-tre-em-viet-nam-1061103056.htm
+2026-10-14T10:56:27.707Z [DATE] Found publish_date via meta article:published_time: 2025-07-01T01:43:59.000Z
+2026-10-14T10:56:29.065Z [DATE] Found publish_date via meta pubdate: 2025-08-21T01:06:00.000Z
+2026-10-14T10:56:29.072Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://congan.com.vn/thi-truong/thuong-hieu-viet/vinamilk-ho-tro-dong-bao-nghe-an-khac-phuc-hau-qua-thien-tai_182131.html
+2026-10-14T10:56:29.072Z [FETCH] Opening article: https://congan.com.vn/thi-truong/thuong-hieu-viet/vinamilk-ho-tro-dong-bao-nghe-an-khac-phuc-hau-qua-thien-tai_182131.html
+2026-10-14T10:56:29.395Z [DATE] Found publish_date via meta pubdate: 2025-08-21T01:06:00.000Z
+2026-10-14T10:56:30.636Z [DATE] Found publish_date via JSON-LD datePublished: 2025-09-01T10:32:53.000Z
+2026-10-14T10:56:30.649Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://thanhtra.com.vn/doanh-nghiep-70CE54C31/gan-1-trieu-san-pham-vinamilk-tiep-suc-cho-dai-le-ky-niem-80-nam-quoc-khanh-29-aed27f05e.html
+2026-10-14T10:56:30.649Z [FETCH] Opening article: https://thanhtra.com.vn/doanh-nghiep-70CE54C31/gan-1-trieu-san-pham-vinamilk-tiep-suc-cho-dai-le-ky-niem-80-nam-quoc-khanh-29-aed27f05e.html
+2026-10-14T10:56:31.146Z [DATE] Found publish_date via JSON-LD datePublished: 2025-09-01T10:32:53.000Z
+2026-10-14T10:56:32.621Z [DATE] Found publish_date via meta article:published_time: 2025-07-17T07:30:50.000Z
+2026-10-14T10:56:32.627Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://mekongasean.vn/dot-pha-dinh-duong-6-hmo-tu-vinamilk-optimum-tao-an-tuong-tai-san-choi-quoc-te-43855.html
+2026-10-14T10:56:32.627Z [FETCH] Opening article: https://mekongasean.vn/dot-pha-dinh-duong-6-hmo-tu-vinamilk-optimum-tao-an-tuong-tai-san-choi-quoc-te-43855.html
+2026-10-14T10:56:33.153Z [DATE] Found publish_date via meta article:published_time: 2025-07-17T07:30:50.000Z
+2026-10-14T10:56:33.708Z [DATE] Found publish_date via RSS pubDate: 2025-09-16T07:00:00.000Z
+2026-10-14T10:56:33.720Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://baolangson.vn/vinamilk-va-bai-hoc-bien-chi-phi-xanh-thanh-suc-manh-thuong-hieu-5059052.html
+2026-10-14T10:56:33.720Z [FETCH] Opening article: https://baolangson.vn/vinamilk-va-bai-hoc-bien-chi-phi-xanh-thanh-suc-manh-thuong-hieu-5059052.html
+2026-10-14T10:56:34.265Z [DATE] Found publish_date via JSON-LD datePublished: 2025-06-19T10:16:01.000Z
+2026-10-14T10:56:34.267Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://diendandoanhnghiep.vn/top-10-thuong-hieu-sua-duoc-chon-mua-nhieu-nhat-viet-nam-co-den-5-nhan-hieu-cung-nha-vinamilk-10156291.html
+2026-10-14T10:56:34.267Z [FETCH] Opening article: https://diendandoanhnghiep.vn/top-10-thuong-hieu-sua-duoc-chon-mua-nhieu-nhat-viet-nam-co-den-5-nhan-hieu-cung-nha-vinamilk-10156291.html
+2026-10-14T10:56:34.388Z [DATE] Found publish_date via RSS pubDate: 2025-09-16T07:00:00.000Z
+2026-10-14T10:56:34.502Z [DATE] Found publish_date via JSON-LD datePublished: 2025-06-19T10:16:01.000Z
+2026-10-14T10:56:35.734Z [DATE] Found publish_date via JSON-LD datePublished: 2025-07-26T06:06:01.000Z
+2026-10-14T10:56:35.741Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://hanoimoi.vn/vinamilk-mo-khoa-tu-nhien-tai-green-farm-mo-hinh-sinh-thai-truyen-cam-hung-den-cong-dong-doanh-nghiep-710485.html
+2026-10-14T10:56:35.741Z [FETCH] Opening article: https://hanoimoi.vn/vinamilk-mo-khoa-tu-nhien-tai-green-farm-mo-hinh-sinh-thai-truyen-cam-hung-den-cong-dong-doanh-nghiep-710485.html
+2026-10-14T10:56:36.373Z [DATE] Found publish_date via JSON-LD datePublished: 2025-07-26T06:06:01.000Z
+2026-10-14T10:56:37.998Z [DATE] Found publish_date via RSS pubDate: 2025-08-07T07:00:00.000Z
+2026-10-14T10:56:37.999Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://trading.vietcap.com.vn/ai-news/post-detail/vnm-doanh-thu-tu-chuoi-cua-hang-dat-ky-luc-vinamilk-vnm-len-ke-hoach-mo-them-200-diem-ban-trong-nam-2025
+2026-10-14T10:56:37.999Z [FETCH] Opening article: https://trading.vietcap.com.vn/ai-news/post-detail/vnm-doanh-thu-tu-chuoi-cua-hang-dat-ky-luc-vinamilk-vnm-len-ke-hoach-mo-them-200-diem-ban-trong-nam-2025
+2026-10-14T10:56:38.876Z [DATE] Found publish_date via RSS pubDate: 2025-08-07T07:00:00.000Z
+2026-10-14T10:56:40.126Z [DATE] Found publish_date via meta article:published_time: 2025-08-18T07:33:44.000Z
+2026-10-14T10:56:40.131Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://viracresearch.com/thi-truong-sua-viet-nam-nua-dau-2025-khoi-sac/
+2026-10-14T10:56:40.131Z [FETCH] Opening article: https://viracresearch.com/thi-truong-sua-viet-nam-nua-dau-2025-khoi-sac/
+2026-10-14T10:56:41.375Z [DATE] Found publish_date via meta article:published_time: 2025-08-18T07:33:44.000Z
+2026-10-14T10:56:41.501Z [DATE] Found publish_date via meta article:published_time: 2022-11-08T01:00:37.000Z
+2026-10-14T10:56:41.505Z [INFO] [FETCH] Browser fallback (body needs JavaScript): https://vuphong.vn/dien-mat-troi-tai-sieu-nha-may-sua-cua-vinamilk/
+2026-10-14T10:56:41.505Z [FETCH] Opening article: https://vuphong.vn/dien-mat-troi-tai-sieu-nha-may-sua-cua-vinamilk/
+2026-10-14T10:56:42.807Z [DATE] Found publish_date via meta article:published_time: 2022-11-08T01:00:37.000Z
+2026-10-14T10:56:43.452Z [WARN] Stopping: finish active articles and save progress.
+2026-10-14T10:56:45.465Z [INFO] Google session saved.
+2026-10-14T10:56:45.498Z [INFO] Browser closed.
+2026-10-14T10:56:45.498Z [INFO] Crawl: 1 new articles stored; page reads: 1 over HTTP, 95 in the browser; 2300 articles in this plan.
+2026-10-14T10:56:45.499Z [HEALTH] Coverage: INCOMPLETE; 927 unfinished/limited queries; 17213 unverified articles; 6 saturated RSS day queries.
+EXIT=130

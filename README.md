@@ -152,7 +152,7 @@ npm.cmd run import -- output/prudential_pr_20180101_20260930_reviewed.csv
 | `HTTP_PER_DOMAIN` | `2` | Số yêu cầu cùng lúc tới một báo |
 | `ARTICLE_CONCURRENCY` | `3` | Số tab trình duyệt cho bài HTTP không đọc được |
 | `GN_DECODE_CONCURRENCY` | `2` | Số link Google News giải mã cùng lúc |
-| `GN_DECODE_DELAY_MS` | `1000` | Khoảng cách tối thiểu giữa hai lần giải mã link Google News, mili giây (±25% ngẫu nhiên). Sau HTTP 429 khoảng cách tăng gấp đôi (tối đa 10 giây), sau 200 lần thành công liên tiếp giảm dần về mức này |
+| `GN_DECODE_DELAY_MS` | `2000` | Khoảng cách tối thiểu giữa hai lần giải mã link Google News, mili giây (±25% ngẫu nhiên). Ở 1000 (1 link/giây), Google chặn sau khoảng 50 phút. Sau HTTP 429 khoảng cách tăng gấp đôi (tối đa 10 giây), sau 200 lần thành công liên tiếp giảm dần về mức này |
 | `GN_DECODE_COOLDOWN_MS` | `600000` | Thời gian chờ khi Google chặn giải mã (HTTP 429); tăng gấp đôi nếu vẫn bị chặn, tối đa 60 phút. Trạng thái chặn lưu ở `output/news.db.gn-decode.json` để lượt sau không gọi lại Google khi còn bị chặn |
 | `ENRICH_CONCURRENCY` | `4` | Số bài phân loại cùng lúc (số lệnh gọi Gemini song song) |
 | `PAGE_TIMEOUT` | `30000` | Thời gian chờ tải bài (HTTP và trình duyệt), mili giây |
@@ -264,6 +264,7 @@ Test chạy không cần mạng: store, resume, khoá tiến trình, tải HTTP 
 - Thiếu Chromium: chạy `npx.cmd playwright install chromium`.
 - Lỗi `node:sqlite`: nâng Node.js lên 22.13 trở lên.
 - CAPTCHA: tool tự mở một cửa sổ để bạn xác thực, đóng khi thành công và tiếp tục chạy ẩn. Đóng cửa sổ hoặc hết `CAPTCHA_PAUSE_MS` thì tool bỏ qua truy vấn/bài đó và liệt kê ở dòng `[HEALTH]`.
+- CAPTCHA của báo được xử lý theo từng báo: mỗi báo chỉ mở một cửa sổ, bài khác của báo đó chờ kết quả, báo khác vẫn chạy. Xác thực xong thì các bài sau của báo đó đọc bằng cookie vừa có. Không xác thực thì báo đó bị bỏ qua đến hết lượt (không mở cửa sổ nữa); bài của báo giữ trạng thái cũ và được đọc ở lượt sau. Dòng `[HEALTH]` cuối lượt liệt kê các báo bị bỏ qua.
 - Kết quả ít hoặc rỗng: kiểm tra khoảng ngày, log phân loại, nguồn bị chặn. Nếu log có `[SELECTOR]`, sửa `src/config/googleSelectors.json` dựa trên HTML lưu ở `logs/selector-debug/`.
 - Hai URL của cùng bài vẫn bị tính 2 lần: thêm luật vào `src/config/urlIdentity.js`.
 - Excel hiển thị sai tiếng Việt: nhập qua **Data → From Text/CSV**, chọn UTF-8.

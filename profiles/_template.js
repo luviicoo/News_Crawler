@@ -54,6 +54,10 @@ module.exports = {
     // negativeOverride: ({ text }) => /\bgiai bong da vinamilk\b/.test(text),
   },
 
+  // (Không bắt buộc) Chỉ mở cửa sổ CAPTCHA thủ công cho các tên miền này ('.vn' =
+  // mọi tên miền đuôi .vn). Trang khác gặp CAPTCHA bị bỏ qua đến hết lượt. Bỏ trống = mọi trang.
+  // captchaDomains: ['.vn'],
+
   // (Không bắt buộc) Dấu hiệu bài PR/tài trợ riêng của ngành hoặc báo, thêm vào
   // bộ mẫu chung (nhãn "Thông tin doanh nghiệp", "Nội dung tài trợ", URL /tai-tro/...).
   // labels: so khớp không dấu với breadcrumb, chuyên mục, tag, câu đầu/cuối bài.
