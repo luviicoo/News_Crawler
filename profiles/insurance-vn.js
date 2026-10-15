@@ -99,17 +99,20 @@ module.exports = {
     {
       brand: 'Sun Life Viet Nam',
       aliases: ['Sun Life Viet Nam', 'Sun Life Vietnam', 'Sun Life VN', 'Sun Life'],
-      queries: ['sun life viet nam', '"Sun Life"', 'sun life vn tin tuc'],
+      queries: ['"Sun Life" "Việt Nam"', '"Sun Life"', 'sun life vn tin tuc'],
+      siteQuery: '"Sun Life"',
     },
     {
       brand: 'Chubb Life Viet Nam',
       aliases: ['Chubb Life Viet Nam', 'Chubb Life Vietnam', 'Chubb Life VN', 'Chubb Life'],
-      queries: ['chubb life viet nam', '"Chubb Life Viet Nam"'],
+      queries: ['"Chubb Life"', '"Chubb Life Viet Nam"'],
+      siteQuery: '"Chubb Life"',
     },
     {
       brand: 'FWD Viet Nam',
       aliases: ['FWD Viet Nam', 'FWD Vietnam', 'FWD VN', 'FWD'],
-      queries: ['fwd viet nam bao hiem', 'fwd vn tin tuc'],
+      queries: ['"FWD" "bảo hiểm"', 'fwd vn tin tuc'],
+      siteQuery: '"FWD" "bảo hiểm"',
       // Drivetrain labels such as "Cầu trước (FWD)" or "FWD/AWD".
       lookalikes: [
         /(?:cầu trước|dẫn động(?: cầu trước)?)\s*\(?\s*FWD\s*\)?/giu,
@@ -124,17 +127,19 @@ module.exports = {
         'Daiichi Life Viet Nam', 'Daiichi Life Vietnam', 'Daiichi Life', 'Daiichi Viet Nam',
         'Daiichi Vietnam', 'Daiichi',
       ],
-      queries: ['dai-ichi life viet nam', 'dai-ichi life vn bao hiem nhan tho', 'daiichi viet nam bao hiem'],
+      queries: ['"Dai-ichi Life" OR "Daiichi Life"', 'dai-ichi life vn bao hiem nhan tho', 'daiichi viet nam bao hiem'],
+      siteQuery: '("Dai-ichi Life" OR "Daiichi Life")',
     },
     {
       brand: 'AIA Viet Nam',
       aliases: ['AIA Viet Nam', 'AIA Vietnam', 'AIA VN', 'AIA'],
-      queries: ['aia viet nam bao hiem', 'aia vn tin tuc'],
+      queries: ['"AIA" "bảo hiểm"', 'aia vn tin tuc'],
+      siteQuery: '"AIA" "bảo hiểm"',
     },
     {
       brand: 'Bao Viet Nhan Tho',
       aliases: ['Bao Viet Nhan Tho', 'Bao Viet Life', 'Baoviet Life', 'Bao Viet'],
-      queries: ['bao viet nhan tho', 'baoviet life tin tuc'],
+      queries: ['"Bảo Việt Nhân Thọ"', 'baoviet life tin tuc'],
       // Unquoted common words match nearly every article on a news site.
       siteQuery: '"Bao Viet Nhan Tho"',
       // These businesses share the Bao Viet name but are not Bao Viet Life.
@@ -156,12 +161,14 @@ module.exports = {
     {
       brand: 'Manulife Viet Nam',
       aliases: ['Manulife Viet Nam', 'Manulife Vietnam', 'Manulife VN', 'Manulife'],
-      queries: ['manulife viet nam bao hiem', 'manulife vn tin tuc'],
+      queries: ['"Manulife" "Việt Nam"', 'manulife vn tin tuc'],
+      siteQuery: '"Manulife"',
     },
     {
       brand: 'Generali Viet Nam',
       aliases: ['Generali Viet Nam', 'Generali Vietnam', 'Generali VN', 'Generali'],
-      queries: ['generali viet nam bao hiem', 'generali vn tin tuc'],
+      queries: ['"Generali" "Việt Nam"', 'generali vn tin tuc'],
+      siteQuery: '"Generali"',
     },
   ],
 };

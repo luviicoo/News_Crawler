@@ -25,7 +25,8 @@ const contentHash = text => createHash('sha1').update(normalizeTitle(text)).dige
 async function runCrawl(options, deps) {
   const { profileName, dateRange, plan, store, concurrency = 8, refresh = false,
     webMaxPages = 5, searchDelayMin = 3000, searchDelayMax = 6000, rssDelayMin = 1000, rssDelayMax = 2000,
-    daily = false, maxAttempts = 3, browserRecycleArticles = 300, runArgs = null, shouldStop = () => false } = options;
+    daily = false, maxAttempts = 3, browserRecycleArticles = 300, runArgs = null,
+    progressIntervalMs = 60000, shouldStop = () => false } = options;
   const limit = pLimit(concurrency);
   const processedThisRun = new Set();
   let fetchedThisRun = 0;
@@ -187,8 +188,22 @@ async function runCrawl(options, deps) {
     if (drainError) throw drainError;
   };
 
+  function progress() {
+    const checked = [...queryState.values()].filter(query => query.status === 'done').length;
+    const states = Object.fromEntries(store.planUrlStatuses().map(row => [row.status, row.n]));
+    const unverified = (states.failed || 0) + (states['content-unverified'] || 0) + (states['date-unverified'] || 0);
+    log.progress('Crawl', `queries ${checked}/${plan.length}; ${fetchedThisRun} new articles stored; ` +
+      `${methods.http} HTTP / ${methods.browser} browser reads; ${states.pending || 0} URLs pending; ${unverified} unverified.`);
+  }
+
   let status = 'failed';
+  let progressTimer;
   try {
+    progress();
+    if (progressIntervalMs > 0) {
+      progressTimer = setInterval(progress, progressIntervalMs);
+      progressTimer.unref();
+    }
     if (!shouldStop()) await drain();
     for (const task of plan) {
       if (shouldStop()) break;
@@ -216,7 +231,10 @@ async function runCrawl(options, deps) {
         const value = { status: 'failed', reason: err.message, attempts, checkedAt: new Date().toISOString() };
         store.upsertQuery(task, profileName, value, runId);
         queryState.set(task.id, value);
-        log.warn(`[COVERAGE] ${task.query}: ${err.message}`);
+        const code = /\b([45]\d{2})\b/.exec(err.message)?.[1];
+        log.issue(`search-failed-${task.channel}-${code || 'other'}`,
+          `${task.channel.toUpperCase()} searches failed${code ? ` with HTTP ${code}` : ''}; affected queries remain pending`,
+          `[COVERAGE] ${task.query}: ${err.message}`);
         continue;
       } finally {
         searching = false;
@@ -250,9 +268,11 @@ async function runCrawl(options, deps) {
     status = shouldStop() ? 'interrupted' : 'done';
     return report();
   } finally {
+    clearInterval(progressTimer);
     // Let in-flight article reads finish and record before closing resources.
     await draining;
     try {
+      progress();
       store.finishRun(runId, status, { fetched_this_run: fetchedThisRun, fetch_methods: methods,
         search_stats: deps.getSearchStats?.() || {} });
     } finally {

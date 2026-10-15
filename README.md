@@ -85,7 +85,7 @@ Chạy trên bài của profile chưa phân loại (hoặc tất cả với `--r
    - Bài không nhắc hãng nào nhưng do truy vấn ngành tìm thấy và đúng chủ đề (rule chủ đề, Gemini xác nhận ở chế độ hybrid/gemini) mang nhãn ngành, cột `mentioned_brands` để trống.
    - Bài còn lại bị loại nhưng vẫn nằm trong store.
 4. Đánh dấu **bài đăng lại**: cùng tiêu đề (từ 30 ký tự) hoặc cùng nội dung ở báo khác thì trỏ về bản đăng sớm nhất. Bài đăng ở hai báo vẫn tính là hai lần xuất hiện.
-5. Log `[HEALTH] WARN noisy query` chỉ ra truy vấn cần thu hẹp trong profile: từ 20 bài bị loại trở lên và tỷ lệ nhận dưới 5%.
+5. Log `[HEALTH]` báo tổng số nhóm truy vấn nhiễu: từ 20 bài bị loại trở lên và tỷ lệ nhận dưới 5%. Đặt `LOG_LEVEL=debug` để xem từng truy vấn cần thu hẹp trong profile.
 
 Phân loại lại toàn bộ sau khi sửa rule của profile: `npm.cmd run enrich -- --reclassify`.
 
@@ -148,6 +148,7 @@ npm.cmd run import -- output/prudential_pr_20180101_20260930_reviewed.csv
 | `PUBLISHER_DOMAINS` | `publishers` của profile | Danh sách domain phân cách bằng dấu phẩy |
 | `WEB_MAX_PAGES` | `5` | Số trang tối đa cho mỗi truy vấn Web; CLI `--web-pages` ưu tiên |
 | `RSS_TIMEOUT_MS` | `30000` | Thời gian chờ một yêu cầu RSS |
+| `LOG_LEVEL` | `summary` | Log tổng hợp; đặt `debug` để xem từng truy vấn, URL, ngày và quyết định phân loại |
 | `HTTP_CONCURRENCY` | `8` | Số bài tải bằng HTTP cùng lúc |
 | `HTTP_PER_DOMAIN` | `2` | Số yêu cầu cùng lúc tới một báo |
 | `ARTICLE_CONCURRENCY` | `3` | Số tab trình duyệt cho bài HTTP không đọc được |
@@ -265,9 +266,13 @@ Test chạy không cần mạng: store, resume, khoá tiến trình, tải HTTP 
 - Lỗi `node:sqlite`: nâng Node.js lên 22.13 trở lên.
 - CAPTCHA: tool tự mở một cửa sổ để bạn xác thực, đóng khi thành công và tiếp tục chạy ẩn. Đóng cửa sổ hoặc hết `CAPTCHA_PAUSE_MS` thì tool bỏ qua truy vấn/bài đó và liệt kê ở dòng `[HEALTH]`.
 - CAPTCHA của báo được xử lý theo từng báo: mỗi báo chỉ mở một cửa sổ, bài khác của báo đó chờ kết quả, báo khác vẫn chạy. Xác thực xong thì các bài sau của báo đó đọc bằng cookie vừa có. Không xác thực thì báo đó bị bỏ qua đến hết lượt (không mở cửa sổ nữa); bài của báo giữ trạng thái cũ và được đọc ở lượt sau. Dòng `[HEALTH]` cuối lượt liệt kê các báo bị bỏ qua.
-- Kết quả ít hoặc rỗng: kiểm tra khoảng ngày, log phân loại, nguồn bị chặn. Nếu log có `[SELECTOR]`, sửa `src/config/googleSelectors.json` dựa trên HTML lưu ở `logs/selector-debug/`.
+- Kết quả ít hoặc rỗng: kiểm tra khoảng ngày, log tổng hợp và nguồn bị chặn. Đặt `LOG_LEVEL=debug` để xem phân loại từng bài; nếu có `[SELECTOR]`, kiểm tra `src/config/googleSelectors.json` và HTML trong `logs/selector-debug/`.
 - Hai URL của cùng bài vẫn bị tính 2 lần: thêm luật vào `src/config/urlIdentity.js`.
 - Excel hiển thị sai tiếng Việt: nhập qua **Data → From Text/CSV**, chọn UTF-8.
+
+Mặc định log chỉ hiện phạm vi chạy, tiến độ mỗi 60 giây (truy vấn đã xong, bài mới lưu, bài chưa xác minh), kết quả crawl/phân loại/xuất file và lỗi được gộp theo nhóm. Lỗi lặp lại không in từng link; cuối lượt có tổng số lần gặp mỗi nhóm lỗi. CAPTCHA và thời gian chờ khi Google chặn vẫn được thông báo.
+
+Chỉ khi cần chẩn đoán mới đặt `LOG_LEVEL=debug` trong `.env`. Chế độ này in chi tiết từng link và có thể lưu HTML chẩn đoán selector vào `logs/selector-debug/`. Log không được đưa vào Git. Xoá thư mục `logs/` không làm mất dữ liệu bài báo hoặc tiến độ trong SQLite.
 
 Tool đã làm được gì, chưa làm được gì và lý do: xem [STATUS.md](STATUS.md).
 
@@ -277,7 +282,7 @@ Tool đã làm được gì, chưa làm được gì và lý do: xem [STATUS.md]
 | --- | --- |
 | `output/news.db` (+ `-wal`, `-shm`) | Store; không đưa vào Git. Xoá là mất toàn văn và tiến độ (CSV vẫn còn) |
 | `output/*.csv` | CSV xuất ra; được lưu trong Git để chia sẻ |
-| `logs/` | Log các lần chạy; được lưu trong Git để đối chiếu |
+| `logs/` | Log/chẩn đoán cục bộ, không đưa vào Git; có thể xoá khi không cần |
 | `.google-state.json` | Cookies/localStorage; xoá sẽ đặt lại phiên Google |
 | `node_modules/` | Chỉ xoá khi muốn cài lại bằng `npm.cmd ci` |
 

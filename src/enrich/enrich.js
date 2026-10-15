@@ -139,7 +139,7 @@ function queryPrecision(store, profileName) {
  * @param {Function} [options.fetchArticle] (url, {ensureBrowser}) → bài; tải lại bài import chưa có toàn văn
  */
 async function runEnrich(store, { profile, classifier, fetchArticle, launchBrowser, closeBrowser,
-  concurrency = 4, reclassify = false, browserRecycleArticles = 300, shouldStop = () => false }) {
+  concurrency = 4, reclassify = false, browserRecycleArticles = 300, progressIntervalMs = 60000, shouldStop = () => false }) {
   const runId = store.startRun({ profile: profile.name, mode: 'enrich', args: { reclassify } });
   const browser = launchBrowser
     ? createBrowserSession({ launchBrowser, closeBrowser, recycleAfter: browserRecycleArticles }) : null;
@@ -196,15 +196,26 @@ async function runEnrich(store, { profile, classifier, fetchArticle, launchBrows
   }
 
   let status = 'failed';
+  let progressTimer;
+  let checked = 0;
+  let total = 0;
+  const progress = () => log.progress('Enrich', `${checked}/${total} articles checked; ` +
+    `${stats.accepted} accepted / ${stats.rejected} rejected; ${stats.refetch_failed} unavailable; ` +
+    `${classifier.usage?.calls || 0} Gemini calls.`);
   try {
     const ids = store.profileArticleIds(profile.name);
-    log.info(`[ENRICH] ${ids.length} articles in profile ${profile.name}`);
+    total = ids.length;
+    progress();
+    if (progressIntervalMs > 0) {
+      progressTimer = setInterval(progress, progressIntervalMs);
+      progressTimer.unref();
+    }
     for (let index = 0; index < ids.length && !shouldStop(); index += concurrency * 4) {
       const results = await Promise.allSettled(ids.slice(index, index + concurrency * 4).map(id => limit(() => enrichOne(id))));
+      checked += results.filter(result => result.status === 'fulfilled').length;
       const failed = results.find(result => result.status === 'rejected');
       if (failed) throw failed.reason;
       if (browser) await browser.recycleIfDue();
-      if ((index / (concurrency * 4)) % 25 === 24) log.info(`[ENRICH] ${Math.min(index + concurrency * 4, ids.length)}/${ids.length} articles checked`);
     }
     stats.republished = markRepublished(store);
     if (classifier.usage) stats.gemini = { ...classifier.usage };
@@ -213,6 +224,8 @@ async function runEnrich(store, { profile, classifier, fetchArticle, launchBrows
     status = shouldStop() ? 'interrupted' : 'done';
     return stats;
   } finally {
+    clearInterval(progressTimer);
+    progress();
     store.finishRun(runId, status, stats);
     if (browser) await browser.close();
   }

@@ -353,7 +353,8 @@ async function requestGemini(prompt, config) {
     } catch (err) {
       if (!err.retryable || attempt >= maxRetries) throw err;
       const delay = Math.min(60000, Math.max(err.retryDelayMs || 0, 2000 * 2 ** attempt)) * (0.8 + Math.random() * 0.4);
-      log.warn(`${err.message}; retrying Gemini in ${Math.round(delay / 1000)} s (${attempt + 1}/${maxRetries}).`);
+      log.issue('gemini-retries', 'Gemini requests need retries',
+        `${err.message}; retrying Gemini in ${Math.round(delay / 1000)} s (${attempt + 1}/${maxRetries}).`);
       await sleep(delay);
     }
   }
@@ -609,7 +610,8 @@ function createClassifier(profile, { cache = null } = {}) {
       return { ...decision, sentiment: result.sentiment, source: `${decision.source || 'rules'}+gemini`,
         reason: `${decision.reason}; ${detail} mixed; Gemini sentiment: ${result.reason}` };
     } catch (err) {
-      log.warn(`Gemini sentiment failed for ${title}: ${err.message}`);
+      log.issue('gemini-sentiment-failed', 'Gemini sentiment checks failed; using rules',
+        `Gemini sentiment failed for ${title}: ${err.message}`);
       return fromRules(' (mixed, Gemini failed)');
     }
   }
@@ -714,7 +716,8 @@ function createClassifier(profile, { cache = null } = {}) {
         }
         return llmResult;
       } catch (err) {
-        log.warn(`Gemini classification failed for ${article.url || title}: ${err.message}`);
+        log.issue('gemini-classification-failed', 'Gemini classification failed; using the configured fallback',
+          `Gemini classification failed for ${article.url || title}: ${err.message}`);
         return withSentiment(applyFallback(ruleDecision, targetBrandDef, config));
       }
     }
@@ -745,7 +748,8 @@ function createClassifier(profile, { cache = null } = {}) {
     try {
       return parseTopicResult(await config.call(buildTopicPrompt({ ...article, content: clip(content, config) }, topic), config));
     } catch (err) {
-      log.warn(`Gemini topic check failed for ${article.url || title}: ${err.message}`);
+      log.issue('gemini-topic-failed', 'Gemini topic checks failed; using the configured fallback',
+        `Gemini topic check failed for ${article.url || title}: ${err.message}`);
       return config.reviewFallback === 'accept'
         ? { decision: 'accept', is_topic: true, sentiment: 'neutral', confidence: 0.2, source: 'fallback',
           reason: `Fallback accept: ${err.message}` }

@@ -100,7 +100,7 @@ function createCsvWriter(filePath, { append = false } = {}) {
     stream.write(COLUMNS.join(',') + '\n');
   }
 
-  log.info(`CSV writer initialised: ${filePath}`);
+  log.debug(`CSV writer initialised: ${filePath}`);
 
   let rowsWritten = 0;
   let streamClosed = false;
@@ -151,7 +151,7 @@ function createCsvWriter(filePath, { append = false } = {}) {
       if (streamError) { stream.destroy(); reject(streamError); return; }
       stream.end(() => {
         streamClosed = true;
-        log.info(`CSV finalised. ${rowsWritten} rows written to ${filePath}`);
+        log.debug(`CSV finalised. ${rowsWritten} rows written to ${filePath}`);
         resolve();
       });
       stream.once('error', reject);

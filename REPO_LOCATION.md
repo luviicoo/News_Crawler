@@ -15,7 +15,7 @@ stored in `.google-state.json` here. Crawler output and the SQLite store
 (`output/news.db`) default to `output/` here; relative `OUTPUT_DIR` values
 resolve from this root.
 
-CSV output in `output/` and run logs in `logs/` are tracked in Git; the
-SQLite store is not.
+CSV output in `output/` is tracked in Git; run logs in `logs/` and the
+SQLite store are not.
 Local credentials, browser state, dependencies, and Git history backups
 are excluded from Git by `.gitignore`.

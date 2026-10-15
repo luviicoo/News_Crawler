@@ -26,6 +26,13 @@ test('article content excludes related stories even inside a broad articleBody w
     assert.ok(actual.includes('Prudential Việt Nam giới thiệu'));
     assert.ok(!actual.includes('tin liên quan'));
     assert.ok(!actual.includes('Financial'));
+
+    await page.setContent(`<main><div class="__MASTERCMS_CONTENT">${body}
+      FWD Việt Nam hợp tác BVBank.</div><div class="article-content">
+      Bảo Việt ở bản tin bên cạnh. ${'Tin khác '.repeat(100)}</div></main>`);
+    const masterCms = await extractArticleContent(page);
+    assert.ok(masterCms.includes('FWD Việt Nam hợp tác BVBank'));
+    assert.ok(!masterCms.includes('Bảo Việt'));
   } finally {
     await browser.close();
   }

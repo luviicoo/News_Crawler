@@ -15,6 +15,7 @@ const { readCsvFile } = require('../src/output/csvRead');
 const { createClassifier, findMentionedBrands } = require('../src/utils/articleClassifier');
 const { loadProfile } = require('../src/config/profile');
 const { parseArgs, isPublishDateWithinRange } = require('../src/index');
+const log = require('../src/output/logger');
 const profile = loadProfile('insurance-vn');
 const prudential = BRANDS.find(item => item.brand === 'Prudential Viet Nam');
 const range = { from: '2024-01-01', to: '2024-02-29' };
@@ -153,6 +154,30 @@ test('failed searches and pagination limits remain unresolved and are retried on
   assert.equal(second.coverage_checks_complete, true);
   assert.equal(second.fetched_articles, 1);
   assert.equal(counts.rss + counts.web, options.plan.length * 2);
+});
+
+test('summary progress continues during slow work and its timer stops when the crawl finishes', async t => {
+  const options = setup(t);
+  options.plan = options.plan.filter(task => task.channel === 'rss').slice(0, 1);
+  options.progressIntervalMs = 5;
+  const updates = [];
+  t.mock.method(log, 'progress', (phase, message) => updates.push({ phase, message }));
+  const result = await runCrawl(options, {
+    launchBrowser: async () => {}, closeBrowser: async () => {},
+    searchRss: async () => {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      return [card('progress')];
+    },
+    fetchArticle: async url => article(url),
+  });
+  assert.equal(result.fetched_this_run, 1);
+  assert.ok(updates.length >= 3);
+  assert.equal(updates[0].phase, 'Crawl');
+  assert.match(updates[0].message, /queries 0\/1/);
+  assert.match(updates.at(-1).message, /queries 1\/1; 1 new articles stored/);
+  const finishedCount = updates.length;
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(updates.length, finishedCount);
 });
 
 test('missing dates are retryable, and new RSS dates unblock URLs within the same run', async t => {

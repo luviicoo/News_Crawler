@@ -8,7 +8,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-/logs/selector-debug/
+/logs/
 /output/*.lock
 
 # Shared SQLite store: binary, grows with full text; CSV exports stay tracked

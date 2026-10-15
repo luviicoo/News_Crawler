@@ -386,7 +386,7 @@ async function extractPublishDate(page, articleUrl, { rssPublishDate = '' } = {}
       }
     } catch (err) {
       // Individual strategy failure is not fatal – try the next one
-      log.warn(`Date strategy "${name}" threw: ${err.message}`);
+      log.debug(`Date strategy "${name}" threw: ${err.message}`);
     }
   }
 

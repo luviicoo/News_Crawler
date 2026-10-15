@@ -175,7 +175,7 @@ async function extractArticleContent(page) {
   return page.evaluate(max => {
     // Publisher body selectors precede generic itemprop containers: some sites
     // put articleBody on a wrapper containing the entire page and other stories.
-    const selectors = ['[data-field="body"]', '.fck_detail', '.singular-content',
+    const selectors = ['[data-field="body"]', '.fck_detail', '.singular-content', '.__MASTERCMS_CONTENT',
       '.article__body', '.article-body', '.article-content', '.detail-content', '.content-detail',
       '.detail__content', '.detail_content', '.detail_body', '#content_body', '.post-content',
       'article.article-detail', '[itemprop="articleBody"]', 'article', 'main'];
@@ -340,7 +340,7 @@ async function fetchArticle(url, { rssPublishDate = '', prSignals } = {}) {
       });
 
       const targetUrl = resolveGoogleRedirect(url) || url;
-      if (targetUrl !== url) log.info(`[URL] Unwrapped article URL: ${url} -> ${targetUrl}`);
+      if (targetUrl !== url) log.debug(`[URL] Unwrapped article URL: ${url} -> ${targetUrl}`);
       await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
       if (await isCaptchaPage(page) && !(await verifySite(page, isCaptchaPage))) {
         // Left as it was: the publisher is skipped for this run and read again by the next one.
@@ -351,7 +351,7 @@ async function fetchArticle(url, { rssPublishDate = '', prSignals } = {}) {
       let finalUrl = page.url();
       const unwrappedFinalUrl = resolveGoogleRedirect(finalUrl);
       if (unwrappedFinalUrl && unwrappedFinalUrl !== finalUrl) {
-        log.info(`[URL] Reopening final redirect target: ${finalUrl} -> ${unwrappedFinalUrl}`);
+        log.debug(`[URL] Reopening final redirect target: ${finalUrl} -> ${unwrappedFinalUrl}`);
         await page.goto(unwrappedFinalUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
         finalUrl = page.url();
       }
@@ -371,7 +371,7 @@ async function fetchArticle(url, { rssPublishDate = '', prSignals } = {}) {
       return result;
     } catch (err) {
       if (attempt < maxAttempts) {
-        log.warn(`Retrying article (attempt ${attempt + 1}): ${url} — ${err.message}`);
+        log.debug(`Retrying article (attempt ${attempt + 1}): ${url} — ${err.message}`);
         await randomDelay(1000, 2000);
       } else {
         log.error(url, err.message);

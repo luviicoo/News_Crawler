@@ -86,7 +86,7 @@ async function launchBrowser({ managedSignals = false } = {}) {
   const headless = true;
   _managedSignals = managedSignals;
   _isHeadless = Boolean(headless);
-  log.info(`Launching Chromium stealth (headless=${headless}) …`);
+  log.debug(`Launching Chromium stealth (headless=${headless}) …`);
 
   _browser = await chromiumExtra.launch({
     headless,
@@ -110,9 +110,9 @@ async function launchBrowser({ managedSignals = false } = {}) {
   // Load cookies từ lần chạy trước nếu có
   const storageState = readSavedState();
   if (storageState) {
-    log.info('Loading saved Google session (cookies)…');
+    log.debug('Loading saved Google session (cookies)…');
   } else {
-    log.info('No saved session found — will create new one.');
+    log.debug('No saved session found — will create new one.');
   }
 
   _googleContext = await _browser.newContext({
@@ -127,7 +127,7 @@ async function launchBrowser({ managedSignals = false } = {}) {
     },
   });
 
-  log.info('Browser + Google context ready.');
+  log.debug('Browser + Google context ready.');
   return _browser;
 }
 
@@ -183,7 +183,8 @@ function verifyInPopup(page, isChallengePage) {
       log.warn('[CAPTCHA] Verification window closed or timed out.');
       return false;
     } catch (error) {
-      log.warn(`[CAPTCHA] Could not complete manual verification: ${error.message}`);
+      log.issue('captcha-verification-failed', 'Manual CAPTCHA verification failed',
+        `[CAPTCHA] Could not complete manual verification: ${error.message}`);
       return false;
     } finally {
       if (popupBrowser) await popupBrowser.close().catch(() => {});
@@ -209,9 +210,9 @@ async function saveGoogleSession() {
   try {
     const state = filterGoogleState(await _googleContext.storageState());
     fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
-    log.info('Google session saved.');
+    log.debug('Google session saved.');
   } catch (err) {
-    log.warn(`Could not save session: ${err.message}`);
+    log.issue('google-session-save-failed', 'Google session could not be saved', `Could not save session: ${err.message}`);
   }
 }
 
@@ -261,7 +262,7 @@ async function closeBrowser() {
     await _browser.close();
     _browser = _googleContext = _googlePage = null;
     _isHeadless = false;
-    log.info('Browser closed.');
+    log.debug('Browser closed.');
   }
 }
 

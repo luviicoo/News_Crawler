@@ -51,7 +51,7 @@ function createArticleFetcher({
         return { finalUrl: target, articleTitle: '', articleText: '', publishDate: null, deferred: 'captcha',
           error: 'Publisher CAPTCHA not solved this run', canonicalUrl: '', ogUrl: '', alternateUrls: [] };
       }
-      log.info(`[FETCH] Browser fallback (${why}): ${target}`);
+      log.debug(`[FETCH] Browser fallback (${why}): ${target}`);
       await ensure();
       stats.browser++;
       const result = await browserFetch(target, { rssPublishDate: date, prSignals });

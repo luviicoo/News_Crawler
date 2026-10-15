@@ -167,7 +167,9 @@ function createGoogleNewsDecoder({ concurrency = 2, timeoutMs = 15000, fetchImpl
     // Only in-flight decodes are shared, so a long crawl does not keep every link.
     if (!inflight.has(id)) {
       inflight.set(id, limit(() => (isThrottled() ? '' : decodeNew(id))).catch(err => {
-        if (!isThrottled()) log.warn(`[URL] Google News link not decoded over HTTP (${err.message}); using the browser.`);
+        if (!isThrottled()) log.issue('google-news-decode-fallback',
+          'Some Google News links need browser decoding',
+          `[URL] Google News link not decoded over HTTP (${err.message}); using the browser.`);
         return '';
       }).finally(() => inflight.delete(id)));
     }

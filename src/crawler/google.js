@@ -165,7 +165,9 @@ async function fetchRssWithRetry(rssUrl, shouldStop = () => false) {
       return xml;
     } catch (err) {
       if (shouldStop() || !retryable || attempt >= backoffs.length) throw err;
-      log.warn(`${err.message}; retrying RSS in ${backoffs[attempt] / 1000}s`);
+      const code = /\b([45]\d{2})\b/.exec(err.message)?.[1];
+      log.issue(`rss-retry-${code || 'network'}`, `RSS requests need retries${code ? ` (HTTP ${code})` : ''}`,
+        `${err.message}; retrying RSS in ${backoffs[attempt] / 1000}s`);
       await new Promise((r) => setTimeout(r, backoffs[attempt]));
     }
   }
@@ -183,7 +185,7 @@ async function searchGoogleNewsRss(query, dateRange, { shouldStop = () => false,
     `https://news.google.com/rss/search?q=${encodeURIComponent(rssQuery)}` +
     '&hl=vi&gl=VN&ceid=VN:vi';
 
-  log.info(`Fetching Google News RSS (${describeNewsDateFilter(dateRange)}): ${rssUrl}`);
+  log.debug(`Fetching Google News RSS (${describeNewsDateFilter(dateRange)}): ${rssUrl}`);
 
   const xml = await fetchRssWithRetry(rssUrl, shouldStop);
   const itemMatches = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)];
@@ -215,7 +217,8 @@ async function searchGoogleNewsRss(query, dateRange, { shouldStop = () => false,
   const span = dateRange && (Date.parse(dateRange.to) - Date.parse(dateRange.from)) / 86400000;
   if (cards.length >= 100 && span > 0) {
     const midpoint = addDays(dateRange.from, Math.floor(span / 2));
-    log.warn(`[RSS_LIMIT] ${query}: ${cards.length} results; splitting ${dateRange.from} -> ${dateRange.to}`);
+    log.issue('rss-split', 'RSS result limits require smaller date windows',
+      `[RSS_LIMIT] ${query}: ${cards.length} results; splitting ${dateRange.from} -> ${dateRange.to}`);
     // Split requests are paced like planned queries to avoid bursts that trigger 429s.
     await pause();
     const left = await searchGoogleNewsRss(query, { from: dateRange.from, to: midpoint }, { shouldStop, pause });
@@ -226,7 +229,8 @@ async function searchGoogleNewsRss(query, dateRange, { shouldStop = () => false,
   }
   if (cards.length >= 100) {
     searchStats.saturatedDayQueries.push({ query, dateRange, results: cards.length });
-    log.warn(`[RSS_LIMIT] ${query}: a single day still returned ${cards.length} results.`);
+    log.issue('rss-saturated-day', 'Some daily RSS feeds reached the result limit; coverage may be incomplete',
+      `[RSS_LIMIT] ${query}: a single day still returned ${cards.length} results.`);
   }
   return cards;
 }
@@ -273,7 +277,7 @@ async function acceptConsent(page) {
       if (btn) {
         await btn.click();
         await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
-        log.info('Consent dialog accepted.');
+        log.debug('Consent dialog accepted.');
         return;
       }
     } catch (_) {}
@@ -300,7 +304,8 @@ async function ensureNoCaptcha(page, query) {
   }
 
   searchStats.captchaBlockedQueries.push(query);
-  log.warn(`[CAPTCHA] Not solved; skipping query "${query}".`);
+  log.issue('google-captcha-unsolved', 'Google CAPTCHA unresolved; affected searches remain pending',
+    `[CAPTCHA] Not solved; skipping query "${query}".`);
 
   if (searchStats.captchaBlockedQueries.length >= MAX_PER_RUN && !browserSearchDisabled) {
     browserSearchDisabled = true;
@@ -409,12 +414,12 @@ async function extractArticleCards(page) {
       results.push({ title, url, publisherDomain });
     }
   } catch (err) {
-    log.warn(`Card extraction strategy 1 failed: ${err.message}`);
+    log.debug(`Card extraction strategy 1 failed: ${err.message}`);
   }
 
   // Strategy 2: fallback, không phụ thuộc selector card
   if (results.length === 0) {
-    log.warn('Strategy 1 got 0 results, trying fallback...');
+    log.debug('Strategy 1 got 0 results, trying fallback...');
     try {
       const links = await page.evaluate((rootSelectors) => {
         const root = rootSelectors.map((sel) => document.querySelector(sel)).find(Boolean) || document.body;
@@ -431,7 +436,7 @@ async function extractArticleCards(page) {
         results.push({ title, url, publisherDomain: extractHostname(url) });
       }
     } catch (err) {
-      log.warn(`Card extraction strategy 2 failed: ${err.message}`);
+      log.debug(`Card extraction strategy 2 failed: ${err.message}`);
     }
   }
 
@@ -468,15 +473,17 @@ async function diagnoseZeroResults(page, query) {
 
   let snapshot = '';
   try {
-    fs.mkdirSync(SELECTOR_DEBUG_DIR, { recursive: true });
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    snapshot = path.join(SELECTOR_DEBUG_DIR, `${stamp}_${slugify(query)}.html`);
-    fs.writeFileSync(snapshot, await page.content(), 'utf8');
+    if (log.isDebug()) {
+      fs.mkdirSync(SELECTOR_DEBUG_DIR, { recursive: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      snapshot = path.join(SELECTOR_DEBUG_DIR, `${stamp}_${slugify(query)}.html`);
+      fs.writeFileSync(snapshot, await page.content(), 'utf8');
+    }
   } catch (err) {
     log.warn(`[SELECTOR] Could not save debug HTML: ${err.message}`);
   }
 
-  log.warn(
+  log.issue('google-selector', 'Google result layout could not be verified; affected searches remain pending',
     `[SELECTOR] Google selectors may be outdated for "${query}": ${reason}. ` +
     `Update src/config/googleSelectors.json${snapshot ? `; page saved to ${snapshot}` : ''}.`
   );
@@ -502,17 +509,17 @@ async function searchGoogleNews(brand, query, options = {}) {
     const rssCards = await searchGoogleNewsRss(query, dateRange);
     if (rssCards.length > 0) {
       log.found(rssCards.length, query);
-      log.info(`Using RSS results for "${query}"`);
+      log.debug(`Using RSS results for "${query}"`);
       return rssCards;
     }
-    log.warn(`RSS returned 0 results for "${query}", falling back to browser search.`);
+    log.debug(`RSS returned 0 results for "${query}", falling back to browser search.`);
   } catch (err) {
-    log.warn(`RSS search failed for "${query}": ${err.message}`);
+    log.issue('rss-search-fallback', 'RSS searches need the browser fallback', `RSS search failed for "${query}": ${err.message}`);
   }
 
   if (browserSearchDisabled) {
     searchStats.browserSkippedQueries.push(query);
-    log.warn(`Browser fallback disabled after repeated CAPTCHA; skipping "${query}".`);
+    log.debug(`Browser fallback disabled after repeated CAPTCHA; skipping "${query}".`);
     return [];
   }
 
@@ -574,7 +581,7 @@ async function searchGoogleNews(brand, query, options = {}) {
     searchResultUrl.searchParams.set('tbs', newsDateFilter);
 
     const newsUrl = searchResultUrl.toString();
-    log.info(`Navigating to News (${newsDateFilterLabel}): ${newsUrl}`);
+    log.debug(`Navigating to News (${newsDateFilterLabel}): ${newsUrl}`);
 
     await page.goto(newsUrl, {
       waitUntil: 'domcontentloaded',
@@ -590,14 +597,14 @@ async function searchGoogleNews(brand, query, options = {}) {
     const hasNewsTab   = finalUrl.includes('tbm=nws');
     const hasExpectedDateFilter = decodedFinalUrl.includes(`tbs=${newsDateFilter}`);
     if (!hasNewsTab || !hasExpectedDateFilter) {
-      log.warn(`Filter not applied correctly (url=${finalUrl}). Retrying…`);
+      log.debug(`Filter not applied correctly (url=${finalUrl}). Retrying…`);
       // Thử lần 2 bằng cách navigate trực tiếp
       const retryUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&tbm=nws&tbs=${encodeURIComponent(newsDateFilter)}&hl=vi&gl=vn`;
       await page.goto(retryUrl, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
       await sleep(1000, 2000);
       if (!(await ensureNoCaptcha(page, query))) return [];
     } else {
-      log.info(`Filter confirmed: News tab + ${newsDateFilterLabel} ✓`);
+      log.debug(`Filter confirmed: News tab + ${newsDateFilterLabel} ✓`);
     }
 
     // ── Bước 4: Extract cards ─────────────────────────────────────────────────
@@ -606,7 +613,7 @@ async function searchGoogleNews(brand, query, options = {}) {
     log.found(cards.length, query);
     if (cards.length === 0) {
       searchStats.browserZeroQueries.push(query);
-      log.warn(`Query "${query}" returned 0 results.`);
+      log.debug(`Query "${query}" returned 0 results.`);
       await diagnoseZeroResults(page, query);
     }
 
@@ -616,7 +623,8 @@ async function searchGoogleNews(brand, query, options = {}) {
     return cards;
 
   } catch (err) {
-    log.warn(`searchGoogleNews failed for "${query}": ${err.message}`);
+    log.issue('google-news-search-failed', 'Some Google News searches failed',
+      `searchGoogleNews failed for "${query}": ${err.message}`);
     return [];
     // Không đóng page — tab dùng chung, chỉ đóng khi closeBrowser()
   }
@@ -639,7 +647,8 @@ async function followGoogleGoto(page, gotoUrl) {
     const location = response.headers().location || '';
     return location ? resolveGoogleRedirect(new URL(location, gotoUrl).href) : '';
   } catch (err) {
-    log.warn(`[WEB] Could not resolve Google result link: ${err.message}`);
+    log.issue('google-web-link-unresolved', 'Some Google Web result links could not be resolved',
+      `[WEB] Could not resolve Google result link: ${err.message}`);
     return '';
   }
 }
@@ -700,7 +709,7 @@ async function searchGoogleWeb(brand, query, { dateRange, maxPages = 5, shouldSt
     if (next && pages < maxPages) await sleep(1500, 3000);
   }
   await saveGoogleSession();
-  log.info(`[WEB] ${brand}: ${query}, ${pages} page(s), ${cards.size} candidates${next ? ' (page limit reached)' : ''}`);
+  log.debug(`[WEB] ${brand}: ${query}, ${pages} page(s), ${cards.size} candidates${next ? ' (page limit reached)' : ''}`);
   return { cards: [...cards.values()], truncated: Boolean(next), pages };
 }
 

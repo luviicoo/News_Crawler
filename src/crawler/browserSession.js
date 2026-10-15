@@ -30,7 +30,7 @@ function createBrowserSession({ launchBrowser, closeBrowser, recycleAfter = 300 
   // Call only while no article tab or search is using the browser.
   async function recycleIfDue() {
     if (!launched || !recycleAfter || sinceLaunch < recycleAfter || recycling) return;
-    log.info(`Restarting browser after ${sinceLaunch} articles to release memory.`);
+    log.debug(`Restarting browser after ${sinceLaunch} articles to release memory.`);
     recycling = (async () => {
       await closeBrowser();
       await launchBrowser({ headless: true, managedSignals: true });

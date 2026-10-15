@@ -174,7 +174,9 @@ function storeStatus(store) {
 async function main() {
   const options = parseArgs();
   const { profile, command } = options;
-  for (const warning of profileWarnings({ ...profile, brands: options.brands })) log.warn(warning);
+  const warnings = profileWarnings({ ...profile, brands: options.brands });
+  if (warnings.length) log.warn(`Profile ${profile.name}: ${warnings.length} publisher queries need quoted brand names.`);
+  for (const warning of warnings) log.debug(warning);
   // Industry phrases name no brand, so a single-brand run leaves them out.
   const industryQueries = options.allBrands ? profile.topic?.queries || [] : [];
   const plan = buildSearchPlan(options.brands, options.dateRange, { ...options, industryQueries });
@@ -262,8 +264,9 @@ async function main() {
           `${stats.gemini.failures} failed; every other decision came from the profile rules.`);
       }
       if (stats.waiting_for_content) log.health(`WARN ${stats.waiting_for_content} articles have no body yet and were not classified.`);
+      if (stats.noisy_queries.length) log.health(`WARN ${stats.noisy_queries.length} search query groups returned mostly unrelated articles.`);
       for (const group of stats.noisy_queries) {
-        log.health(`WARN noisy query for ${group.brand || 'industry'} (${group.kind}): "${group.query}" — ${group.rejected} rejected, ` +
+        log.debug(`Noisy query for ${group.brand || 'industry'} (${group.kind}): "${group.query}" — ${group.rejected} rejected, ` +
           `${group.accepted} accepted. Narrow it in profile ${profile.name}.`);
       }
     }
@@ -278,6 +281,7 @@ async function main() {
     if (incomplete) process.exitCode = 2;
     if (stopped) process.exitCode = 130;
   } finally {
+    log.flush();
     process.removeListener('SIGINT', onStop);
     process.removeListener('SIGTERM', onStop);
     store.close();
@@ -289,8 +293,7 @@ async function main() {
 
 if (require.main === module) {
   main().catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('[FATAL]', err);
+    log.fatal(err);
     process.exit(1);
   });
 }
