@@ -2,7 +2,7 @@
 
 /**
  * Xuất CSV từ store: bài đã được enrich nhận cho profile, lọc theo khoảng
- * ngày (giờ Việt Nam) và hãng. Cột sản phẩm nằm ngay sau cột brand.
+ * ngày (giờ Việt Nam) và hãng. Cột sản phẩm nằm ngay sau cột mentioned_brands.
  *
  * - Lịch sử: ghi lại cả file (qua file tạm rồi đổi tên).
  * - Daily: giữ các dòng đã có trong file (kể cả file 10 cột cũ), chỉ thêm bài

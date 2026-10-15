@@ -82,7 +82,7 @@ test('multi-brand articles use the profile industry label', async t => {
       publishDate: '2024-01-12T02:00:00Z', articleText: 'Ngân hàng tín dụng. '.repeat(20), alternateUrls: [] }),
   });
   assert.equal(stats.accepted, 1);
-  assert.ok(csv[1].startsWith('Ngành ngân hàng,,Alpha Bank; Beta Bank,'));
+  assert.ok(csv[1].startsWith('Ngành ngân hàng,Alpha Bank; Beta Bank,,'));
   assert.deepEqual(stats.noisy_queries, []);
 });
 
@@ -107,8 +107,8 @@ test('declared products identify their brand and fill the mentioned_products col
     fetchArticle: async url => ({ finalUrl: url, articleTitle: 'Gamma Bank ra mắt thẻ Gamma Platinum',
       publishDate: '2024-01-12T02:00:00Z', articleText: 'Ngân hàng mở rộng tín dụng. '.repeat(20), alternateUrls: [] }),
   });
-  assert.equal(csv[0].split(',')[1], 'mentioned_products');
-  assert.equal(csv[1].split(',')[1], 'Gamma Platinum');
+  assert.equal(csv[0].split(',')[2], 'mentioned_products');
+  assert.equal(csv[1].split(',')[2], 'Gamma Platinum');
 });
 
 test('industry queries keep relevant news that names no brand, and noisy queries are reported', async t => {

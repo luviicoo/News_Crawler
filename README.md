@@ -209,13 +209,13 @@ Mỗi dự án theo dõi (một ngành hoặc một nhóm brand) là một file 
 
 Xem nhanh bằng `npm.cmd run status` hoặc mở bằng công cụ SQLite bất kỳ (DB Browser for SQLite…).
 
-**CSV** UTF-8 có BOM, ví dụ `output/prudential_viet_nam_20180101_20260930.csv`. Cột `mentioned_products` nằm ngay sau `brand`:
+**CSV** UTF-8 có BOM, ví dụ `output/prudential_viet_nam_20180101_20260930.csv`. Cột `mentioned_products` nằm ngay sau `mentioned_brands`:
 
 | Cột | Nội dung |
 | --- | --- |
 | `brand` | Thương hiệu, hoặc nhãn ngành nếu bài nhắc từ 2 hãng / là tin ngành |
-| `mentioned_products` | Mọi sản phẩm được nhắc (khai báo ở `products` của từng hãng trong profile), phân cách bằng `; `. Tính lại mỗi lần export |
 | `mentioned_brands` | Các hãng được nhắc, phân cách bằng `; ` (trống với tin ngành không nhắc hãng) |
+| `mentioned_products` | Mọi sản phẩm được nhắc (khai báo ở `products` của từng hãng trong profile), phân cách bằng `; `. Tính lại mỗi lần export |
 | `article_title`, `article_url` | Tiêu đề, URL thật |
 | `publisher_domain`, `publisher_homepage` | Báo |
 | `publish_date` | Giờ Việt Nam: `HH:mm:ss DD/MM/YYYY` |
